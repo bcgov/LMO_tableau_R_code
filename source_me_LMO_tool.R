@@ -206,45 +206,44 @@ jobs_employment <-
 
 
 
-jobs_employment <-
-  filter(jobs_employment, Industry != "all industries") # remove the "all industries" rows
-jobs_employment$`Industry Code` <-
-  as.factor(jobs_employment$`Industry Code`) # factor industry code column
-jobs_employment$Industry <-
-  as.factor(tolower(jobs_employment$Industry)) # factor and lower case for the industry column
-jobs_employment$NOC <-
-  as.factor(jobs_employment$NOC) # factor the NOC column
-jobs_employment$`Geographic Area` <-
-  as.factor(jobs_employment$`Geographic Area`) # factor the geographic area column
-jobs_employment$`Aggregate Industry` <-
-  as.factor(jobs_employment$`Aggregate Industry`)
+jobs_employment <- jobs_employment%>%
+  filter(Industry != "all industries")%>%
+  mutate(`Industry Code` = as.factor(`Industry Code`),
+        Industry = as.factor(tolower(Industry)),
+        NOC = as.factor(NOC),
+        `Geographic Area` = as.factor(`Geographic Area`),
+        `Aggregate Industry` = as.factor(`Aggregate Industry`))
 
 education_occupation <- education_occupation_raw
-education_occupation <-
-  education_occupation[, c(1, 6, 7, 8, 10)] # We only want the columns with the various NOCS and Typical Education Background
-education_occupation$NOC <-
-  as.factor(education_occupation$NOC) # Factor 4 digit NOC
-education_occupation$NOC1 <-
-  as.factor(education_occupation$NOC1) # Factor 1 digit NOC
-education_occupation$NOC2 <-
-  as.factor(education_occupation$NOC2) # Factor 2 digit NOC
-education_occupation$NOC3 <-
-  as.factor(education_occupation$NOC3) # Factor 3 digit NOC
+
+education_occupation <- education_occupation %>%
+  select(starts_with("NOC"), `Education:.Typical.Background`, -contains("&"))%>%
+  mutate(NOC = as.factor(NOC),
+         NOC1 = as.factor(NOC1),
+        NOC2 = as.factor(NOC2),
+        NOC3 = as.factor(NOC3))
 
 jobs_employment <-
-  merge(jobs_employment, education_occupation, by = c("NOC")) # Merge jobs_employment data frame with education data
-
-# we need to have typical education background, NOC (hierarchy), occupation title, employment, expansion year1-year3, replacement year1-year3, job openings year1-year3 (wages too?) (**)
-jobs_employment$Industry <-
-  tolower(jobs_employment$Industry) # ensure that industry is lower case (easier to match up)
-jobs_employment$Industry <-
-  as.factor(jobs_employment$Industry) # ensure that industry is a factor
+  merge(jobs_employment, education_occupation, by = c("NOC"))%>%
+  mutate(Industry = as.factor(tolower(Industry)))
+         
+#' we need to have typical education background, 
+#' NOC (hierarchy), 
+#' occupation title, 
+#' employment, 
+#' expansion year1-year3, 
+#' replacement year1-year3, 
+#' job openings year1-year3 (wages too?) (**)
 
 # Create two null data frames for storage
 by_occupation <- NULL
 Occupation <- NULL
 
-# For each geography and at each occupation (4 digit) level, we need to create a variable for employment year1, expansion year1-year3, replacement year1-year3 and job openings year1-year3
+#' For each geography and at each occupation (4 digit) level, 
+#' we need to create a variable for employment year1, 
+#' expansion year1-year3, 
+#' replacement year1-year3 
+#' and job openings year1-year3
 
 for (i in 1:nlevels(jobs_employment$`Geographic Area`)) {
   # loop through each level of geography
