@@ -1,3 +1,4 @@
+tictoc::tic()
 #1.1 PRE-REQS----------------
 #' ensure that the current versions of the following files are available in subdirectory "LMO Master Databases"
 #' "JO single variables.csv"
@@ -69,7 +70,7 @@ all_aggregates <- function(tbbl){
   )
 }
 
-aggregate_by <- function(var, quoted_var){
+aggregate_jobs_employment_by <- function(var, quoted_var){
   jobs_employment%>%
     group_by(`Geographic Area`, {{ var  }})%>%
     nest()%>%
@@ -338,17 +339,17 @@ Jobs_and_Industry$`Aggregate Industry` <- str_to_title(trimws(Jobs_and_Industry$
 Jobs_and_Industry$Sector <- str_to_title(trimws(as.character(Jobs_and_Industry$Sector)))
 Jobs_and_Industry[which(Jobs_and_Industry$Sector == "Agrifood Sector"), "Sector"] <- "Agrifoods Sector"
 
-# 1.6 Aggregate dataframe jobs_employment by region and sector (doesn't appear to be needed????)------------
+# 1.6 Aggregate dataframe jobs_employment by region and sector (not referenced below????)------------
 
-# by_sector <- aggregate_by(Sector, "Sector")
+# by_sector <- aggregate_jobs_employment_by(Sector, "Sector")
 
 # 1.7 Aggregate dataframe jobs_employment by region and aggregate industry------------
 
-by_aggregated_industry <- aggregate_by(`Aggregate Industry`, "Aggregate Industry")
+by_aggregated_industry <- aggregate_jobs_employment_by(`Aggregate Industry`, "Aggregate Industry")
 
-# 1.8 Aggregate dataframe jobs_employment by  region and industry------------
+# 1.8 Aggregate dataframe jobs_employment by region and industry------------
 
-by_individual_industry <- aggregate_by(`Industry`, "Industry")
+by_individual_industry <- aggregate_jobs_employment_by(`Industry`, "Industry")
 
 # To this data frame , we are going to map the aggregate industry categories, we can get these from the Jobs_and_Industry data frame
 mapping <- unique(Jobs_and_industry[, c("Industry", "Aggregate Industry")]) # Take the all unique pairings of Industry and Aggregate Industry from the Jobs and Industry data frame
@@ -371,24 +372,17 @@ individual_industry_agg_industry <- # ensure there are no duplicates
 # 1.9_Wage_Data--------------------
 # We need a data frame with low wages, median wages, and high wages for the 500 occupations
 
-wages_cleaned <-
-  wages_raw[, c(
-    "NOC",
-    "Economic.Region",
-    "Low.Wage.($).2020.(1st.decile)",
-    "Median.Wage.($).2020",
-    "High.Wage.($).2020.(9th.decile)"
-  )] # we don't need some of the columns (ie NOC Code or NOC Title)
-colnames(wages_cleaned) <-
-  c("NOC", "Region", "Low Wage", "Median Wage", "High Wage") # rename columns so they are cleaner
-wages_cleaned <- remove_missing(wages_cleaned) # remove any rows where there is missing information (would just result in NAs in Tableau)
-wages_cleaned <- filter(wages_cleaned, Region != "National") # Remove national for region
-
-# Factor the regions so the names of the regions are consistent
-wages_cleaned$Region <-
-  factor(
-    wages_cleaned$Region,
-    levels = levels(as.factor(wages_cleaned$Region)),
+wages_cleaned <- wages_raw%>%
+  select(NOC,
+        Region = "Economic.Region",
+        `Low Wage` = "Low.Wage.($).2020.(1st.decile)",
+        `Median Wage` = "Median.Wage.($).2020",
+        `High Wage` = "High.Wage.($).2020.(9th.decile)")%>%
+  remove_missing()%>%
+  filter(Region != "National")%>%
+  mutate(Region= factor(
+    Region,
+    levels = levels(as.factor(Region)),
     labels = c(
       "British Columbia",
       "Cariboo",
@@ -400,68 +394,54 @@ wages_cleaned$Region <-
       "Thompson Okanagan",
       "Vancouver Island Coast"
     )
-  )
+  ))
+
 
 # We also want to do this by occupation group (ie HOO group)
 colnames(group) <- c("NOC", "Occupation Group", "Region") # Rename columns to NOC, Region and Occupation Group
-group$NOC <- as.factor(group$NOC) # change the NOC level to a factor
-group$`Occupation Group` <- as.factor(group$`Occupation Group`) # change the occupation group to a factor
+
+group <- group%>%
+  mutate(NOC = as.factor(NOC),
+         `Occupation Group` = as.factor(group$`Occupation Group`))
 
 group_and_wages <- merge(group, wages_cleaned, all = TRUE) # merge the group data with the wages data
-# group_and_wages <- remove_missing(group_and_wages) #again remove rows with missing data as it will just result in a NA category in Tableau
 
-# we only need to keep certain columns, select those columns and order them
-occ_characteristics <-
-  occ_char_raw[, c(
-    "NOC",
-    "Description",
-    "Education:.Typical.Background",
-    "Education:.Alternative.Background",
-    "Interest1",
-    "Interest2",
-    "Interest3",
-    "Skill1",
-    "Skill2",
-    "Skill3",
-    "Interests",
-    "Skills:.Top.3"
-  )]
-
-# Rename the columns so they are consisten
-colnames(occ_characteristics) <-
-  c(
-    "NOC",
-    "Occupation Title",
-    "Typical Education",
-    "Alternative Education",
-    "Interest1",
-    "Interest2",
-    "Interest3",
-    "Skill1",
-    "Skill2",
-    "Skill3",
-    "Interests",
-    "Top 3 Skills and Competencies"
-  )
-
-occ_characteristics <- filter(occ_characteristics, NOC != "#T") # filter data to not include the NOC #T (total), we can calculate this in Tableau if necessary
-occ_characteristics$NOC <- as.factor(occ_characteristics$NOC) # ensure the NOCS are a factor
+occ_characteristics <- occ_char_raw%>%
+  select(
+    NOC,
+    `Occupation Title` = "Description",
+    `Typical Education` = "Education:.Typical.Background",
+    `Alternative Education` = "Education:.Alternative.Background",
+    `Interest1`,
+    `Interest2`,
+    `Interest3`,
+    `Skill1`,
+    `Skill2`,
+    `Skill3`,
+    `Interests`,
+    `Top 3 Skills and Competencies` = "Skills:.Top.3")%>%
+  filter(NOC != "#T")%>%
+  mutate(NOC=as.factor(NOC))
 
 # Merge this cleaned data frame with the groups and wages data frame
-group_wages_characteristics <-
-  merge(group_and_wages, occ_characteristics)
+group_wages_characteristics <- merge(group_and_wages, occ_characteristics)
 
 # To this we need to add the job openings data for year1-2031
-jo <-
-  jobs_employment[, c("NOC", "Date", "Geographic Area", "Job Openings")]
-jo <- filter(jo, Date != year1 - 1) %>% filter(Date != year1) # filter to only include dates from 2020-2031 used to calculate the total
+
+jo <- jobs_employment%>%
+  select("NOC", "Date", "Geographic Area", "Job Openings")%>%
+  filter(Date != year1 - 1,
+         Date != year1)
+
 jo <- aggregate(`Job Openings` ~ NOC + `Geographic Area`, jo, sum) # aggregate job openings by NOC and geographic area
 colnames(jo) <- c("NOC", "Region", "Job Openings") # rename the columns
 
 # We need to add Employment year1
-emp <-
-  jobs_employment[, c("NOC", "Date", "Geographic Area", "Employment")]
-emp <- filter(emp, Date %in% year1) # filter to only include 2019
+
+emp <- jobs_employment%>%
+  select("NOC", "Date", "Geographic Area", "Employment")%>%
+  filter(Date == year1)
+
 emp <- aggregate(Employment ~ NOC + `Geographic Area`, emp, sum) # aggregate employment by NOC and geographic area
 colnames(emp) <- c("NOC", "Region", "Employment year1") # rename the columns
 
@@ -473,7 +453,11 @@ group_wages_characteristics <-
 group_wages_characteristics <- group_wages_characteristics[!is.na(group_wages_characteristics$`Occupation Group`), ]
 
 # 1.10_Write_to_File---------------------------------------------------------------------------------------------------------
+
+fwrite(JO_Employment, here("Tableau Tool Inputs", "Clean_JO.csv"))
+fwrite(DS_merged, here("Tableau Tool Inputs","Supply_cleaned.csv"))
 fwrite(Occupation2, here("Tableau Tool Inputs", "Occupations_regional.csv"))
 fwrite(Jobs_and_Industry, here("Tableau Tool Inputs", "Jobs_and_Industry.csv"))
 fwrite(individual_industry_agg_industry, here("Tableau Tool Inputs", "Employment_Growth_Rates.csv"))
 fwrite(group_wages_characteristics, here("Tableau Tool Inputs", "occ_characteristics_wage.csv"))
+tictoc::toc()
