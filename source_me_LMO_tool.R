@@ -70,7 +70,7 @@ all_aggregates <- function(tbbl){
   )
 }
 
-aggregate_jobs_employment_by <- function(var, quoted_var){
+aggregate_jobs_employment_by <- function(var){
   jobs_employment%>%
     group_by(`Geographic Area`, {{ var  }})%>%
     nest()%>%
@@ -82,8 +82,9 @@ aggregate_jobs_employment_by <- function(var, quoted_var){
            Variable = name,
            `Level.Value` = {{  var  }},
            Value = value)%>%
-    mutate(Level = quoted_var)
+    mutate(Level = rlang::englue("{{  var  }}"))
 }
+
 
 # 1.2 a lot of code duplication between the Rmd versions of LMO tool and industry tool. Load the common code.
 source("previously_duplicated_code.R")
@@ -341,15 +342,15 @@ Jobs_and_Industry[which(Jobs_and_Industry$Sector == "Agrifood Sector"), "Sector"
 
 # 1.6 Aggregate dataframe jobs_employment by region and sector (not referenced below????)------------
 
-# by_sector <- aggregate_jobs_employment_by(Sector, "Sector")
+# by_sector <- aggregate_jobs_employment_by(Sector)
 
 # 1.7 Aggregate dataframe jobs_employment by region and aggregate industry------------
 
-by_aggregated_industry <- aggregate_jobs_employment_by(`Aggregate Industry`, "Aggregate Industry")
+by_aggregated_industry <- aggregate_jobs_employment_by(`Aggregate Industry`)
 
 # 1.8 Aggregate dataframe jobs_employment by region and industry------------
 
-by_individual_industry <- aggregate_jobs_employment_by(`Industry`, "Industry")
+by_individual_industry <- aggregate_jobs_employment_by(`Industry`)
 
 # To this data frame , we are going to map the aggregate industry categories, we can get these from the Jobs_and_Industry data frame
 mapping <- unique(Jobs_and_industry[, c("Industry", "Aggregate Industry")]) # Take the all unique pairings of Industry and Aggregate Industry from the Jobs and Industry data frame
