@@ -81,10 +81,7 @@ aggregate_by <- function(var, quoted_var){
            Variable = name,
            `Level.Value` = {{  var  }},
            Value = value)%>%
-    mutate(Level = quoted_var)%>%
-    unique()%>%
-    remove_missing()%>%
-    filter(Level.Value != "Total")
+    mutate(Level = quoted_var)
 }
 
 # 1.2 a lot of code duplication between the Rmd versions of LMO tool and industry tool. Load the common code.
@@ -292,7 +289,7 @@ jobs_employment <-
   merge(jobs_employment, education_occupation, by = c("NOC"))%>%
   mutate(Industry = as.factor(tolower(Industry)))
 
-#create Occupation dataframe-----------
+#Occupation dataframe does not have full set of aggregates
 Occupation <- jobs_employment%>%
   group_by(`Geographic Area`,
            NOC,
@@ -341,214 +338,17 @@ Jobs_and_Industry$`Aggregate Industry` <- str_to_title(trimws(Jobs_and_Industry$
 Jobs_and_Industry$Sector <- str_to_title(trimws(as.character(Jobs_and_Industry$Sector)))
 Jobs_and_Industry[which(Jobs_and_Industry$Sector == "Agrifood Sector"), "Sector"] <- "Agrifoods Sector"
 
-# 1.6_Prep_Growth_Rates_Sectors------------------
+# 1.6 Aggregate dataframe jobs_employment by region and sector (doesn't appear to be needed????)------------
 
-by_sector <- aggregate_by(Sector, "Sector")
+# by_sector <- aggregate_by(Sector, "Sector")
 
-# 1.7_Prep_Growth_Rates_Aggregate_Industries---------
+# 1.7 Aggregate dataframe jobs_employment by region and aggregate industry------------
 
 by_aggregated_industry <- aggregate_by(`Aggregate Industry`, "Aggregate Industry")
 
+# 1.8 Aggregate dataframe jobs_employment by  region and industry------------
 
-
-# 1.8_Prep_Growth_Rates_LMO_Industries----------------
-# We need to calculate growth rates for the individual industries, the aggregate industries and at the sector level because these will be too difficult to aggregate directly in Tableau. This section loops over the industries.
-# We need to do the same thing but now for the individual industries
-# Create two empty data frames for storage as we go through the loop
-by_ind_industry <- NULL
-by_individual_industry <- NULL
-
-
-for (i in 1:nlevels(jobs_employment$`Geographic Area`)) { # Loop through each geographic area
-
-  temp <-
-    filter(
-      jobs_employment,
-      `Geographic Area` == levels(jobs_employment$`Geographic Area`)[i]
-    ) # filter the jobs_employment data frame to only include the geography of interest
-  temp$Industry <- as.factor(temp$Industry) # ensure the industry column is a factor
-
-  # We need a column with labels for Employment year1, Employment Growth (CAGR) year1-2026, Employment Growth (CAGR) 2026-2031, Employment Growth (CAGR) year1-2031, Expansion year1-2031, Replacement year1-2031, Total Job Openings year1-2031 for the levels of the LMO 61 industries
-
-  for (j in 1:nlevels(temp$Industry)) { # Loop over each of the LMO 61 industries
-
-    # We are going to get the employment year1 data for the geography and aggregate industry first
-    temp_employment_year1 <-
-      unique(filter(temp, temp$Industry == levels(temp$Industry)[j])) %>% filter(Date == year1) # filter to only include geography/industry and year to year1
-
-    employment_year1 <-
-      sum(as.numeric(temp_employment_year1$Employment)) # we need to sum this value to get employment for the industry
-    ind_industry_employment <- # place this into a data frame: Geographic Area (specifying the region), Variable (Employment year1, Job Openings etc), Level (Aggregate Industry or LMO 61 Industry level), Level Value (the name assigned to the industry or aggregate industry) and Value (numeric value for the variable)
-      data.frame(
-        "Geographic Area" = levels(jobs_employment$`Geographic Area`)[i],
-        "Variable" = "Employment year1",
-        "Level" = "Industry",
-        "Level Value" = levels(temp_employment_year1$Industry)[j],
-        "Value" = employment_year1
-      )
-
-    # Calculate the employment growth from year1 to 2026: This is calculated as the (employment in 2026/employment in year1 ^(1/n) - 1) (the CAGR, where n is the number of years)
-    temp_employmentgrowth_year1_year2 <-
-      unique(filter(temp, temp$Industry == levels(temp$Industry)[j])) %>% filter(Date %in% c(year1, year2))
-
-    # Calculate the CAGR from year1-2026
-    CAGR1 <-
-      100 * (((
-        sum(
-          filter(temp_employmentgrowth_year1_year2, Date %in% year2)$Employment
-        ) / sum(
-          filter(temp_employmentgrowth_year1_year2, Date %in% year1)$Employment
-        )
-      )^(1 / 5)) - 1)
-
-    temp_employmentgrowth_year2_year3 <-
-      unique(filter(temp, temp$Industry == levels(temp$Industry)[j])) %>% filter(Date %in% c(year2, year3))
-
-    # Calculate the CAGR from 2026-2031
-    CAGR2 <-
-      100 * (((
-        sum(
-          filter(temp_employmentgrowth_year2_year3, Date %in% year3)$Employment
-        ) / sum(
-          filter(temp_employmentgrowth_year2_year3, Date %in% year2)$Employment
-        )
-      )^(1 / 5)) - 1)
-
-    temp_employmentgrowth_year1_year3 <-
-      unique(filter(temp, temp$Industry == levels(temp$Industry)[j])) %>% filter(Date %in% c(year1, year3))
-
-    # Calculate the CAGR from year1-2031
-    CAGR3 <-
-      100 * (((
-        sum(
-          filter(temp_employmentgrowth_year1_year3, Date %in% year3)$Employment
-        ) / sum(
-          filter(temp_employmentgrowth_year1_year3, Date %in% year1)$Employment
-        )
-      )^(1 / 10)) - 1)
-
-    # place the CAGRS into individual data frames: Geographic Area (specifying the region), Variable (Employment year1, Job Openings etc), Level (Aggregate Industry or LMO 61 Industry level), Level Value (the name assigned to the industry or aggregate industry) and Value (numeric value for the variable)
-
-    ind_industry_employment2 <-
-      data.frame(
-        "Geographic Area" = levels(jobs_employment$`Geographic Area`)[i],
-        "Variable" = "Employment Growth year1-year2",
-        "Level" = "Industry",
-        "Level Value" = levels(temp$Industry)[j],
-        "Value" = CAGR1
-      )
-
-    ind_industry_employment3 <-
-      data.frame(
-        "Geographic Area" = levels(jobs_employment$`Geographic Area`)[i],
-        "Variable" = "Employment Growth year2-year3",
-        "Level" = "Industry",
-        "Level Value" = levels(temp$Industry)[j],
-        "Value" = CAGR2
-      )
-
-    ind_industry_employment4 <-
-      data.frame(
-        "Geographic Area" = levels(jobs_employment$`Geographic Area`)[i],
-        "Variable" = "Employment Growth year1-year3",
-        "Level" = "Industry",
-        "Level Value" = levels(temp$Industry)[j],
-        "Value" = CAGR3
-      )
-
-
-    # Calculate the expansion demand from year1-2031 (filter the data frame to include years from 2020-2031 and sum for the industry and geography)
-    expansion <-
-      unique(filter(temp, temp$Industry == levels(temp$Industry)[j])) %>% filter(
-        Date %in% c(as.numeric(year1 + 1):year3)
-      )
-    expansion <- sum(expansion$`Expansion Demand`)
-
-    # Calculate the replacement demand from year1-2031 (filter the data frame to include years from 2020-2031 and sum for the industry and geography)
-    replacement <-
-      unique(filter(temp, temp$Industry == levels(temp$Industry)[j])) %>% filter(
-        Date %in% c(as.numeric(year1 + 1):year3)
-      )
-    replacement <- sum(replacement$`Replacement Demand`)
-
-    # Calculate the job openings from year1-2031 (filter the data frame to include years from 2020-2031 and sum for the industry and geography)
-    job_openings_tot <-
-      unique(filter(temp, temp$Industry == levels(temp$Industry)[j])) %>% filter(
-        Date %in% c(as.numeric(year1 + 1):year3)
-      )
-    job_openings_tot <- sum(job_openings_tot$`Job Openings`)
-
-
-    # place the expansion demand, replacement demand and job openings into individual data frames: Geographic Area (specifying the region), Variable (Employment year1, Job Openings etc), Level (Aggregate Industry or LMO 61 Industry level), Level Value (the name assigned to the industry or aggregate industry) and Value (numeric value for the variable)
-
-    ind_industry_employment5 <-
-      data.frame(
-        "Geographic Area" = levels(jobs_employment$`Geographic Area`)[i],
-        "Variable" = "Expansion year1-year3",
-        "Level" = "Industry",
-        "Level Value" = levels(temp$Industry)[j],
-        "Value" = expansion
-      )
-    ind_industry_employment6 <-
-      data.frame(
-        "Geographic Area" = levels(jobs_employment$`Geographic Area`)[i],
-        "Variable" = "Replacement year1-year3",
-        "Level" = "Industry",
-        "Level Value" = levels(temp$Industry)[j],
-        "Value" = replacement
-      )
-    ind_industry_employment7 <-
-      data.frame(
-        "Geographic Area" = levels(jobs_employment$`Geographic Area`)[i],
-        "Variable" = "Job Openings year1-year3",
-        "Level" = "Industry",
-        "Level Value" = levels(temp$Industry)[j],
-        "Value" = job_openings_tot
-      )
-
-
-    # Calculate the Annual Replacement Rate and place into data frame: Geographic Area (specifying the region), Variable (Employment year1, Job Openings etc), Level (Aggregate Industry or LMO 61 Industry level), Level Value (the name assigned to the industry or aggregate industry) and Value (numeric value for the variable)
-    avg <- NULL
-    for (z in 3:nlevels(as.factor(temp$Date))) {
-      date1 <-
-        unique(filter(temp, temp$Industry == levels(temp$Industry)[j])) %>% filter(Date %in% levels(as.factor(temp$Date))[z])
-      date2 <-
-        unique(filter(temp, temp$Industry == levels(temp$Industry)[j])) %>% filter(Date %in% levels(as.factor(temp$Date))[z])
-      emp <- sum(date1$Employment)
-      replacement <- sum(date2$`Replacement Demand`)
-      percent <- replacement / emp
-      avg <- c(percent, avg)
-    }
-    replacement_rate <- mean(avg) * 100
-
-    ind_industry_employment8 <-
-      data.frame(
-        "Geographic Area" = levels(jobs_employment$`Geographic Area`)[i],
-        "Variable" = "Annual Replacement Rate",
-        "Level" = "Industry",
-        "Level Value" = levels(temp$Industry)[j],
-        "Value" = replacement_rate
-      )
-
-    # Now we bind all of theindustry information together into one data frame - this loop will repeat again for each level of industries for this specific geography
-    by_ind_industry <-
-      rbind(
-        ind_industry_employment,
-        ind_industry_employment2,
-        ind_industry_employment3,
-        ind_industry_employment4,
-        ind_industry_employment5,
-        ind_industry_employment6,
-        ind_industry_employment7,
-        ind_industry_employment8,
-        by_ind_industry
-      )
-  }
-
-  # Once the variables have been calculate for each industry in the geography, the loop will be exited. We bind the results of all the industries for that geography into the data frame "by_individual_industry" and then we go on to the next geography in the loop and repeat
-  by_individual_industry <-
-    rbind(by_ind_industry, by_individual_industry)
-}
+by_individual_industry <- aggregate_by(`Industry`, "Industry")
 
 # To this data frame , we are going to map the aggregate industry categories, we can get these from the Jobs_and_Industry data frame
 mapping <- unique(Jobs_and_industry[, c("Industry", "Aggregate Industry")]) # Take the all unique pairings of Industry and Aggregate Industry from the Jobs and Industry data frame
@@ -567,7 +367,6 @@ individual_industry_agg_industry$Level.Value <-
   str_to_title(individual_industry_agg_industry$Level.Value) # convert industries to title case
 individual_industry_agg_industry <- # ensure there are no duplicates
   unique(individual_industry_agg_industry)
-
 
 # 1.9_Wage_Data--------------------
 # We need a data frame with low wages, median wages, and high wages for the 500 occupations
