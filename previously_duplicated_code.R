@@ -4,7 +4,6 @@ library("data.table")
 library("lubridate")
 library("tidyverse")
 library("here")
-library("dplyr")
 library("openxlsx")
 # "CONSTANTS"... that change every year------------
 year1 <- as.numeric(year(today())) - 1 # delete the -1 once we have current data.
@@ -29,8 +28,26 @@ locale = readr::locale(encoding = "latin1")
 # Read in industry characteristics file to get aggregate industry & industry
 ind_char_raw <- read.xlsx(here(
   "LMO Master Databases",
-  "Industry characteristics.xlsx")) %>%
+  "Industry characteristics.xlsx"))%>%
   mutate(Industry=trimws(tolower(Industry)))
+
+# temp <- readxl::read_excel(here(
+#   "LMO Master Databases",
+#   "Industry characteristics.xlsx"))%>%
+#   clean_names()%>%
+#   mutate(across(where(is.character), make_clean_factor))
+# 
+# make_clean_factor <- function(strng){
+#   strng%>%
+#     str_replace_all("\t","")%>%
+#     trimws()%>%
+#     str_to_lower()%>%
+#     str_replace_all(" ","_")%>%
+#     factor()
+# }
+
+
+
 # Read in Employment data
 # Columns of the data include NOC, Description, Industry Code, Industry, Variable, Geographic Area, Date and Employment
 Employment_raw <- read_csv(here(
