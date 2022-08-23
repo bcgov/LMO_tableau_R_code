@@ -1,0 +1,90 @@
+---
+title: "Flowchart of R code"
+author: "Richard Martin"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE}
+library(DiagrammeR)
+mermaid("
+graph LR
+
+1(2020Preliminary wages.xlsx)
+2(JO single variables.csv)
+3(Industry characteristics.xlsx)
+4(Emp single variables.csv)
+5(DS single variables.csv)
+6(NOC Mappings.csv)
+7(Occupation characteristics.xlsx)
+8(HOO list.xlsx) 
+
+1 ==> wages_raw
+2 ==> jo_raw
+3 ==> ind_char_raw
+4 ==> employment_raw
+5 ==> ds_raw
+6 ==> noc_mappings_raw
+7 ==> education_occupation_raw
+8 ==> hoo
+
+jo_raw ==> noc_geo
+noc_geo ==> occ_group
+education_occupation_raw ==> occ_group
+hoo ==> occ_group
+jo_raw ==> jo
+jo ==> jo_employment
+employment_raw ==> jo_employment
+ind_char_raw ==> industry_aggregate
+industry_aggregate ==> jo_employment
+ds_raw ==> ds
+jo_raw ==> jo_duplicate
+jo_duplicate ==> ds_merged
+ds ==> ds_merged
+ind_char_raw ==> ind_char2
+jo_employment ==> jobs_and_industry
+ind_char_2 ==> jobs_and_industry
+noc_mappings_raw ==> noc_broad_occ
+noc_mappings_raw ==> noc_major_group
+noc_mappings_raw ==> noc_minor_group
+noc_mappings_raw ==> noc_unit
+education_occupation_raw ==> education_occupation
+jobs_and_industry ==> jobs_employment
+education_occupation ==> jobs_employment
+jobs_employment ==> occupation
+occupation ==> occupation2
+noc_broad_occ ==> occupation2
+noc_major_group==> occupation2
+noc_minor_group==> occupation2
+noc_unit==> occupation2
+occupation2 ==> noc_mappings2
+noc_mappings2 ==> jobs_and_industry
+jobs_employment ==> by_aggregated_industry
+jobs_employment ==> by_individual_industry
+jobs_and_industry ==> mapping
+mapping ==> by_individual_industry
+by_individual_industry ==> individual_industry_agg_industry
+by_aggregated_industry ==> individual_industry_agg_industry
+wages_raw ==> wages_cleaned
+wages_cleaned ==> group_and_wages
+occ_group ==> group_and_wages
+education_occupation_raw ==> occ_characteristics
+group_and_wages ==> group_wages_characteristics
+occ_characteristics ==> group_wages_characteristics
+jobs_employment ==> j_openings
+jobs_employment ==> emp
+j_openings ==> group_wages_characteristics
+emp ==> group_wages_characteristics
+jo_employment ==> Clean_JO.csv
+ds_merged ==> Supply_cleaned.csv
+occupation2 ==> Occupations_regional.csv
+jobs_and_industry ==> Jobs_and_Industry.csv
+individual_industry_agg_industry ==> Employment_Growth_Rates.csv
+group_wages_characteristics ==> occ_characteristics_wage.csv
+", height = '100%', width = '100%')
+```
+
+

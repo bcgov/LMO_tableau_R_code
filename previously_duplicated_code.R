@@ -1,200 +1,138 @@
-
 # LIBRARIES------------
-library("data.table")
 library("lubridate")
 library("tidyverse")
 library("here")
-library("openxlsx")
+library("readxl")
 # "CONSTANTS"... that change every year------------
 year1 <- as.numeric(year(today())) - 1 # delete the -1 once we have current data.
 year2 <- year1 + 5
 year3 <- year1 + 10
+# Functions--------------
+make_clean_factor <- function(strng) {
+  strng %>%
+    str_replace_all("\t", "") %>%
+    trimws() %>%
+    str_to_lower() %>%
+    str_replace_all(" ", "_") %>%
+    factor()
+}
+clean_tbbl <- function(tbbl) {
+  tbbl %>%
+    janitor::clean_names() %>%
+    mutate(across(where(is.character), make_clean_factor))
+}
+# Read in the dataframes------------------------
 
-# Read in the most recent wage data
-# Columns include NOC (with #), NOC.Code (no #), Noc.Title, Economic.Region.code, Economic.Region, Low Wage, High Wage, Median Wage
-wages_raw <- read.xlsx(here(
-  "Tableau Tool Inputs",
-  "2020Preliminary wages.xlsx" #THIS FILE NAME LIKELY TO CHANGE
-))
-# Read in Jobs data
-# Columns of the data include NOC, Description, Industry, Variable, Geographic Area, Date, Value
-JO_raw <- read_csv(here(
-  "LMO Master Databases",
-  "JO single variables.csv"
-),
-locale = readr::locale(encoding = "latin1")
+# wage data THIS WILL BREAK IF MULTIPLE FILES CONTAIN THE PATTERN wages.
+wages_raw <- read_excel(here("Tableau Tool Inputs", list.files(here("Tableau Tool Inputs"), pattern = "wages")))
+
+# jobs data
+jo_raw <- read_csv(here("LMO Master Databases", "JO single variables.csv"), locale = readr::locale(encoding = "latin1")) %>%
+  clean_tbbl() %>%
+  filter(noc != "#t")
+
+# industry characteristics
+ind_char_raw <- read_excel(here("LMO Master Databases", "Industry characteristics.xlsx")) %>%
+  clean_tbbl()
+
+# employment data
+employment_raw <- read_csv(here("LMO Master Databases", "Emp single variables.csv"),
+  locale = readr::locale(encoding = "latin1")
 ) %>%
-  filter(NOC != "#T")
-# Read in industry characteristics file to get aggregate industry & industry
-ind_char_raw <- read.xlsx(here(
-  "LMO Master Databases",
-  "Industry characteristics.xlsx"))%>%
-  mutate(Industry=trimws(tolower(Industry)))
+  clean_tbbl()
 
-# temp <- readxl::read_excel(here(
-#   "LMO Master Databases",
-#   "Industry characteristics.xlsx"))%>%
-#   clean_names()%>%
-#   mutate(across(where(is.character), make_clean_factor))
-# 
-# make_clean_factor <- function(strng){
-#   strng%>%
-#     str_replace_all("\t","")%>%
-#     trimws()%>%
-#     str_to_lower()%>%
-#     str_replace_all(" ","_")%>%
-#     factor()
-# }
+# demand/supply data
+ds_raw <- read_csv(here("LMO Master Databases", "DS single variables.csv")) %>%
+  clean_tbbl()
 
+# NOC Mappings
+noc_mappings_raw <- read_csv(here("Tableau Tool Inputs", "NOC Mappings.csv")) %>%
+  clean_tbbl()
 
+# Read in occupation characteristics file
+education_occupation_raw <- read_excel(here("LMO Master Databases", "Occupation characteristics.xlsx")) %>%
+  clean_tbbl()
 
-# Read in Employment data
-# Columns of the data include NOC, Description, Industry Code, Industry, Variable, Geographic Area, Date and Employment
-Employment_raw <- read_csv(here(
-  "LMO Master Databases",
-  "Emp single variables.csv"
-),
-locale = readr::locale(encoding = "latin1"))%>%
-  mutate(Industry=trimws(tolower(Industry)))
+# high opportunity occupations
+hoo <- read_excel(here("LMO Master Databases", "HOO list.xlsx")) %>%
+  clean_tbbl() %>%
+  mutate(high_opportunity_occupation = factor(high_opportunity_occupation, labels = c("non-hoo", "hoo"))) %>%
+  rename(occupation_group = high_opportunity_occupation)
 
-# add in the industry code
+# Start processing------------
 
-Employment_raw <- merge(Employment_raw, ind_char_raw[, c("Industry.Code", "Industry")], all = TRUE)%>%
-  rename(`Industry Code` = Industry.Code,
-         Employment = Value)%>%
-  filter(NOC != "#T")
+# add industry_code to employment_raw
+columns_to_keep <- colnames(employment_raw)
+employment_raw <- employment_raw %>%
+  left_join(ind_char_raw, by = "industry") %>%
+  filter(noc != "#t") %>%
+  select(all_of(columns_to_keep), industry_code)
 
-# Read in demand/supply data
-# Columns include NOC, Description, Industry, Variable, Geographic Area, Date, Value
-DS_raw <- fread(here(
-  "LMO Master Databases",
-  "DS single variables.csv"
-))
-# Read in NOC Mappings
-# Columns include Level, Hierarchical structure, code, class title, class definition
-noc_mappings_raw <- fread(here(
-  "Tableau Tool Inputs",
-  "NOC Mappings.csv"
-))
-# Read in occupation characteristics file and assign to data frame education occupation
-education_occupation_raw <- read.xlsx(here(
-  "LMO Master Databases",
-  "Occupation characteristics.xlsx"
-))
-# Read in descriptions file - the industry profiles descriptions gives a description of the LMO industries at the sector, aggregate industry and sector level
-descriptions_raw <- read.xlsx(here(
-  "Tableau Tool Inputs",
-  "IndustryProfiles_Descriptions.xlsx"
-))
-# We will read in the occupation characteristics file again
-occ_char_raw <- read.xlsx(here(
-  "LMO Master Databases",
-  "Occupation characteristics.xlsx"
-))
+# get all observed combinations of noc and geo from jo_raw (to be left joined to occ_group)
+noc_geo <- jo_raw %>%
+  select(noc, geographic_area) %>%
+  distinct()
 
-# Group contains the columns: NOC, Geographic Area and Occupation Group
-
-group <- occ_char_raw%>%
-  select(NOC, 
-         `Occ.Group:.STEM`, 
-         `Occ.Group:.Trades`, 
-         `Occ.Group:.Construction.trades`, 
-         `OCC.Group:.Trades.Mandatory.Certification`,
-         `OCC.Group:.Technicians.&.Technologists`, 
-         `OCC.Group:.Clean.(Green).Occupations`, 
-         `Occ.Group:.Caring`)%>% 
-  filter(NOC != "#T")%>%
-  mutate(`All Occupations` = "All Occupations")%>%
-  pivot_longer(cols = -NOC, names_to = "name", values_to = "Occupation Group") %>%
-  select(NOC, `Occupation Group`)
-
-# get NOC and GEO from JO so we don't have to do this manually
-noc_geo <- unique(JO_raw[, c("NOC", "Geographic Area")]) %>% filter(NOC != "#T")
-
-group <- merge(group, noc_geo, all = TRUE)%>%
-  mutate(NOC = as.factor(NOC))
-
-HOO <- read.xlsx(here("LMO Master Databases", "HOO list.xlsx"))%>%
-  mutate(`High.Opportunity.Occupation?` = factor(`High.Opportunity.Occupation?`, levels = c("Yes", "No"), labels = c("HOO", "Non-HOO")))%>%
-  filter(NOC != "#T")
-colnames(HOO) <- c("NOC", "Geographic Area", "Occupation Group")
-
-group <- merge(HOO, group, by = c("NOC", "Occupation Group", "Geographic Area"), all = TRUE)
+# occ_group(to be left??? joined with wages)
+occ_group <- education_occupation_raw %>%
+  select(
+    noc,
+    starts_with("occ_group") & !contains("hoo_bc")
+  ) %>%
+  filter(noc != "#t") %>%
+  mutate(all_occupations = "all_occupations") %>%
+  pivot_longer(cols = -noc, names_to = "name", values_to = "occupation_group") %>%
+  select(noc, occupation_group) %>%
+  left_join(noc_geo, multiple = "all") %>%
+  bind_rows(hoo) %>%
+  distinct() %>%
+  clean_tbbl()
 
 # 1.3_Prep_Job_Openings----------------
-# The final output is a file with a column for Date, NOC, Description, Industry, Geographic Area, Deaths, Expansion Demand, Job Openings, Replacement Demand, Retirement, Employment and Aggregate Industry
-# Create a data frame with NOC and Industry
-NOC_Ind <- Employment_raw # Create a copy of the employment data frame
 
-NOC_Ind <- NOC_Ind%>%
-  mutate(Description = as.factor(trimws(str_split_fixed(Description, "\t", n = 2)[, 1])),
-         NOC = as.factor(trimws(NOC)),
-         `Industry Code` = as.factor(trimws(`Industry Code`)),
-         Variable = as.factor(trimws(Variable)),
-         Industry = as.factor(trimws(tolower(Industry)))
-         )
-
-# Create a duplicate of jobs data frame (can be used for testing scripts etc)
-
-JO_duplicate <- JO_raw
-JO <- JO_raw
-
-JO <- JO%>%
-  mutate(Variable=as.factor(Variable),
-         NOC = as.factor(trimws(NOC)),
-         Industry = as.factor(tolower(trimws(Industry))),
-         Description = as.factor(trimws(str_split_fixed(Description, "\t", n = 2)[, 1]))
-         )%>%
-  filter(Industry != "all industries", # Note that if label "all industries" changes in the excel file, will need to change (**)
-         Description != "Total",
-         NOC != "#T")%>%
-  pivot_wider(names_from = Variable, values_from = Value) %>%
+jo <- jo_raw %>%
+  filter(
+    industry != "all_industries", # Note that if label "all industries" changes in the excel file, will need to change (**)
+    description != "total",
+    noc != "#t"
+  ) %>%
+  pivot_wider(names_from = variable, values_from = value) %>%
   arrange(
-    NOC,
-    Description,
-    Industry,
-    `Geographic Area`,
-    Date
+    noc,
+    description,
+    industry,
+    geographic_area,
+    date
   )
-  
-# Merge the Employment data frame (NOC_IND) with the job openings data frame
 
-JO_Employment <-
-  merge(
-    JO,
-    NOC_Ind,
-    by = c("Date", "NOC", "Description", "Industry", "Geographic Area"),
-    all = TRUE
-  ) # merge using date, NOC, description, industry and geographic area to match
-JO_Employment <-JO_Employment %>% 
-  filter(Industry != "all industries")%>%
-  select(Date,
-         NOC, 
-         Description, 
-         Employment,
-         Industry,
-         `Geographic Area`, 
-         `Job Openings`, 
-         `Expansion Demand`, 
-         `Replacement Demand`, 
-         `Deaths`, 
-         `Retirements`, 
-         `Industry Code`)%>%
-  mutate(Industry = tolower(as.character(Industry))) # convert industry to lower case
+# join noc with the job openings data frame and then keep only part
+jo_employment <-
+  full_join(
+    jo,
+    employment_raw,
+    by = c("date", "noc", "description", "industry", "geographic_area")
+  )%>%
+  filter(industry != "all_industries") %>%
+  rename(employment = value) %>%
+  select(
+    date,
+    noc,
+    description,
+    employment,
+    industry,
+    geographic_area,
+    job_openings,
+    expansion_demand,
+    replacement_demand,
+    deaths,
+    retirements,
+    industry_code
+  )
 
-Industry_Aggregate <- ind_char_raw%>%
-  select(Industry, `Aggregate Industry` = `Aggregate.Industry`)%>%
-  mutate(Industry = tolower(Industry))
+# get industry and aggregate_industry so we can add to jo_employment
+industry_aggregate <- ind_char_raw %>%
+  select(industry, aggregate_industry)
 
-# merge to JO_Employment data frame so we have aggregate industry
-
-JO_Employment <- merge(JO_Employment, Industry_Aggregate, by = "Industry", all = TRUE)%>%
-  filter(!is.na(`Geographic Area`))%>%
-  mutate(Industry = str_to_title(Industry))
-
-
-
-
-
-
-
+jo_employment <- jo_employment %>%
+  left_join(industry_aggregate, by = "industry") %>%
+  filter(!is.na(geographic_area))
