@@ -56,11 +56,12 @@ graph LR
 3 --> ind_char_raw
 4 --> employment_raw
 
-jo_raw --> jo
-jo --> jo_employment
-ind_char_raw --> employment_industry
+jo_raw --> job_openings
 employment_raw --> employment_industry
-employment_industry -->jo_employment
+ind_char_raw --> employment_industry
+
+job_openings --> jo_employment
+employment_industry --> jo_employment
 jo_employment --> Clean_JO.csv
 
 ", height = '100%', width = '100%')
@@ -103,13 +104,6 @@ graph LR
 6 --> noc_mappings_raw
 7 --> education_occupation_raw
 
-jo_raw --> jo
-jo --> jo_employment
-employment_raw --> jo_employment
-ind_char_raw --> ind_char2
-jo_employment --> jobs_and_industry
-ind_char2 --> jobs_and_industry
-noc_mappings_raw --> noc_broad_occ
 noc_mappings_raw --> noc_major_group
 noc_mappings_raw --> noc_minor_group
 noc_mappings_raw --> noc_unit
@@ -117,13 +111,21 @@ education_occupation_raw --> education_occupation
 jobs_and_industry --> jobs_employment
 education_occupation --> jobs_employment
 jobs_employment --> occupation
-occupation --> occupation2
-noc_broad_occ --> occupation2
-noc_major_group--> occupation2
-noc_minor_group--> occupation2
-noc_unit--> occupation2
-occupation2 --> Occupations_regional.csv
-
+occupation --> noccupation
+noc_broad_occ --> noccupation
+noc_major_group--> noccupation
+noc_minor_group--> noccupation
+noc_unit--> noccupation
+noccupation --> Occupations_regional.csv
+job_openings --> jo_employment
+employment_industry --> jo_employment
+jo_raw --> job_openings
+ind_char_raw --> employment_industry
+employment_raw --> employment_industry
+ind_char_raw --> ind_char2
+jo_employment --> jobs_and_industry
+ind_char2 --> jobs_and_industry
+noc_mappings_raw --> noc_broad_occ
 ", height = '100%', width = '100%')
 ```
 ##### Jobs_and_industry.csv 
@@ -142,6 +144,18 @@ graph LR
 4 --> noc_mappings_raw
 5 --> education_occupation_raw
 
+noc_unit --> noccupation
+ind_char_raw --> ind_char2
+job_openings --> jo_employment
+noccupation --> noc_mappings2
+ind_char2 --> jobs_and_industry
+jo_employment --> jobs_and_industry
+jobs_and_industry --> jobs_industry_noc
+noc_mappings2 --> jobs_industry_noc
+jobs_industry_noc --> Jobs_and_Industry.csv
+employment_raw --> employment_industry
+ind_char_raw --> employment_industry
+employment_industry --> jo_employment
 education_occupation_raw --> education_occupation
 noc_mappings_raw --> noc_broad_occ
 noc_mappings_raw --> noc_major_group
@@ -150,52 +164,56 @@ noc_mappings_raw --> noc_unit
 education_occupation --> jobs_employment
 jobs_and_industry --> jobs_employment
 jobs_employment --> occupation
-jo_raw --> jo
-occupation --> occupation2
-noc_broad_occ --> occupation2
-noc_major_group--> occupation2
-noc_minor_group--> occupation2
-noc_unit --> occupation2
-
-ind_char_raw --> ind_char2
-jo --> jo_employment
-employment_raw --> jo_employment
-occupation2 --> noc_mappings2
-
-ind_char2 --> jobs_and_industry
-jo_employment --> jobs_and_industry
-
-jobs_and_industry --> jobs_industry_noc
-noc_mappings2 --> jobs_industry_noc
-
-jobs_industry_noc --> Jobs_and_Industry.csv
+jo_raw --> job_openings
+occupation --> noccupation
+noc_broad_occ --> noccupation
+noc_major_group--> noccupation
+noc_minor_group--> noccupation
 ", height = '100%', width = '100%')
 ```
-##### Employment_Growth_Rates.csv
+
+##### Employment_Growth_Rates.csv 
 ```{r, echo=FALSE}
 mermaid("
 graph LR
 
-2(JO single variables.csv)
-3(Industry characteristics.xlsx)
-4(Emp single variables.csv)
-7(Occupation characteristics.xlsx)
+1(JO single variables.csv)
+2(Industry characteristics.xlsx)
+3(Emp single variables.csv)
+4(Occupation characteristics.xlsx)
+5(NOC Mappings.csv)
 
-2 --> jo_raw
-3 --> ind_char_raw
-4 --> employment_raw
-7 --> education_occupation_raw
+1 --> jo_raw
+2 --> ind_char_raw
+3 --> employment_raw
+4 --> education_occupation_raw
+5 --> noc_mappings_raw
 
-jo_raw --> jo
-jo --> jo_employment
-employment_raw --> jo_employment
+noc_mappings_raw --> noc_broad_occ
+noc_mappings_raw --> noc_major_group
+noc_mappings_raw --> noc_minor_group
+noc_mappings_raw --> noc_unit
+jobs_employment --> occupation
+occupation --> noccupation
+noc_broad_occ --> noccupation
+noc_major_group--> noccupation
+noc_minor_group--> noccupation
+noc_unit--> noccupation
+jo_raw --> job_openings
+employment_raw --> employment_industry
+ind_char_raw --> employment_industry
+job_openings --> jo_employment
+employment_industry --> jo_employment
 ind_char_raw --> ind_char2
-jo_employment --> jobs_and_industry
-jobs_and_industry --> mapping
-ind_char2 --> jobs_and_industry
+noccupation --> noc_mappings2
 education_occupation_raw --> education_occupation
-jobs_and_industry --> jobs_employment
+jo_employment --> jobs_and_industry
+ind_char2 --> jobs_and_industry
+jobs_and_industry --> jobs_industry_noc
+noc_mappings2 --> jobs_industry_noc
 education_occupation --> jobs_employment
+jobs_and_industry --> jobs_employment
+jobs_industry_noc --> mapping
 jobs_employment --> by_aggregated_industry
 jobs_employment --> by_individual_industry
 mapping --> by_individual_industry
@@ -204,48 +222,50 @@ by_aggregated_industry --> individual_industry_agg_industry
 individual_industry_agg_industry --> Employment_Growth_Rates.csv
 ", height = '100%', width = '100%')
 ```
+
+
+
+
+
+
 ##### occ_characteristics_wage.csv
 
 ```{r, echo=FALSE}
 mermaid("
 graph LR
-1(2020Preliminary wages.xlsx)
-2(JO single variables.csv)
-3(Industry characteristics.xlsx)
-4(Emp single variables.csv)
-7(Occupation characteristics.xlsx)
-8(HOO list.xlsx) 
 
-1 --> wages_raw
-2 --> jo_raw
+1(JO single variables.csv) 
+2(Emp single variables.csv) 
+3(Industry characteristics.xlsx) 
+4(2020Preliminary wages.xlsx)
+5(Occupation characteristics.xlsx)
+
+1 --> jo_raw
+2 --> employment_raw
 3 --> ind_char_raw
-4 --> employment_raw
-7 --> education_occupation_raw
-8 --> hoo
+4 --> wages_raw
+5 --> education_occupation_raw
 
-jo_raw --> noc_geo
-noc_geo --> occ_group
-education_occupation_raw --> occ_group
-hoo --> occ_group
-jo_raw --> jo
-jo --> jo_employment
-employment_raw --> jo_employment
+jo_raw --> job_openings
+employment_raw -->employment_industry
+ind_char_raw --> employment_industry
+job_openings --> jo_employment
+employment_industry --> jo_employment
 ind_char_raw --> ind_char2
+wages_raw --> wages_cleaned
 jo_employment --> jobs_and_industry
 ind_char2 --> jobs_and_industry
-
 education_occupation_raw --> education_occupation
+education_occupation_raw --> occ_group
 jobs_and_industry --> jobs_employment
 education_occupation --> jobs_employment
-
-wages_raw --> wages_cleaned
 wages_cleaned --> group_and_wages
 occ_group --> group_and_wages
 education_occupation_raw --> occ_characteristics
-group_and_wages --> group_wages_characteristics
-occ_characteristics --> group_wages_characteristics
 jobs_employment --> j_openings
 jobs_employment --> emp
+group_and_wages --> group_wages_characteristics
+occ_characteristics --> group_wages_characteristics
 j_openings --> group_wages_characteristics
 emp --> group_wages_characteristics
 group_wages_characteristics --> occ_characteristics_wage.csv

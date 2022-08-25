@@ -116,9 +116,136 @@ col_names_type_example <- function(df){
   tbbl <- tibble(column = cname, type = ctype, example = cexample)
 }
 
-# Load code common to both LMO and Industry tools--------
-source("previously_duplicated_code.R")
+# BEGINNING OF CODE SHARED WITH LMO TOOL--------
+# libraries------------
+library("lubridate")
+library("tidyverse")
+library("here")
+library("readxl")
+# "constants"... that change every year------------
+year1 <- as.numeric(year(today())) - 1 # delete the -1 once we have current data.
+year2 <- year1 + 5
+year3 <- year1 + 10
+# Functions--------------
+#takes a string, cleans it up, then converts to a factor
+make_clean_factor <- function(strng) {
+  strng %>%
+    str_replace_all("\t", "") %>%
+    trimws() %>%
+    str_to_lower() %>%
+    str_replace_all(" ", "_") %>%
+    factor()
+}
+# takes a tibble, converts column names to camel_case, and converts character columns to clean factors.
+clean_tbbl <- function(tbbl) {
+  tbbl %>%
+    janitor::clean_names() %>%
+    mutate(across(where(is.character), make_clean_factor))
+}
+# Read in the dataframes------------------------
+# wage data THIS WILL BREAK IF MULTIPLE FILES CONTAIN THE PATTERN wages.
+wages_raw <- read_excel(here("Tableau Tool Inputs", list.files(here("Tableau Tool Inputs"), pattern = "wages")))
 
+# jobs data
+jo_raw <- read_csv(here("LMO Master Databases", "JO single variables.csv"), locale = readr::locale(encoding = "latin1")) %>%
+  clean_tbbl() %>%
+  filter(noc != "#t")
+
+# industry characteristics
+ind_char_raw <- read_excel(here("LMO Master Databases", "Industry characteristics.xlsx")) %>%
+  clean_tbbl()
+
+# employment data
+employment_raw <- read_csv(here("LMO Master Databases", "Emp single variables.csv"),
+                           locale = readr::locale(encoding = "latin1")
+) %>%
+  clean_tbbl()
+
+# demand/supply data
+ds_raw <- read_csv(here("LMO Master Databases", "DS single variables.csv")) %>%
+  clean_tbbl()
+
+# NOC Mappings
+noc_mappings_raw <- read_csv(here("Tableau Tool Inputs", "NOC Mappings.csv")) %>%
+  clean_tbbl()
+
+# occupation characteristics file
+education_occupation_raw <- read_excel(here("LMO Master Databases", "Occupation characteristics.xlsx")) %>%
+  clean_tbbl()
+
+# high opportunity occupations
+hoo <- read_excel(here("LMO Master Databases", "HOO list.xlsx")) %>%
+  clean_tbbl() %>%
+  mutate(high_opportunity_occupation = factor(high_opportunity_occupation, labels = c("non-hoo", "hoo"))) %>%
+  rename(occupation_group = high_opportunity_occupation) %>%
+  filter(noc != "#t")
+
+#PROCESSING---------------
+
+# job_openings INPUT TO jo_employment---------------
+job_openings <- jo_raw %>%
+  filter(
+    industry != "all_industries", # Note that if label "all industries" changes in the excel file, will need to change (**)
+    description != "total",
+    noc != "#t"
+  ) %>%
+  pivot_wider(names_from = variable, values_from = value)
+
+# employment_industry INPUT TO jo_employment ---------------
+columns_to_keep <- colnames(employment_raw)
+employment_industry <- employment_raw %>%
+  full_join(ind_char_raw, by = "industry") %>%
+  filter(noc != "#t") %>%
+  select(all_of(columns_to_keep), industry_code, aggregate_industry)
+
+# jo_employment INPUT TO Clean_JO.csv AND jobs_and_industry----------------
+jo_employment <-
+  full_join(
+    job_openings,
+    employment_industry,
+    by = c("date", "noc", "description", "industry", "geographic_area")
+  )%>%
+  filter(industry != "all_industries") %>%
+  rename(employment = value) %>%
+  select(
+    date,
+    noc,
+    description,
+    employment,
+    industry,
+    aggregate_industry,
+    geographic_area,
+    job_openings,
+    expansion_demand,
+    replacement_demand,
+    deaths,
+    retirements,
+    industry_code
+  ) %>%
+  filter(!is.na(geographic_area))
+
+# noc_geo INPUT TO occ_group---------------
+noc_geo <- jo_raw %>%
+  select(noc, geographic_area) %>%
+  distinct()
+
+# occ_group INPUT TO group_and_wages--------------
+occ_group <- education_occupation_raw %>%
+  select(
+    noc,
+    starts_with("occ_group") & !contains("hoo_bc")
+  ) %>%
+  filter(noc != "#t") %>%
+  mutate(all_occupations = "all_occupations") %>%
+  pivot_longer(cols = -noc, names_to = "name", values_to = "occupation_group") %>%
+  select(noc, occupation_group) %>%
+  full_join(noc_geo, multiple = "all") %>%
+  bind_rows(hoo) %>%
+  distinct() %>%
+  na.omit() %>%
+  clean_tbbl()
+
+# END OF COMMON CODE--------
 #jo_all_industries INPUT TO ds_merged------------
 jo_all_industries <-jo_raw %>% 
   filter(description != "total",
@@ -172,7 +299,7 @@ ind_char2 <- ind_char_raw%>%
          -ind_group_tech_intensive_industries, 
          -ita_sector_advisory_group)
 
-#jobs_and_industry INPUT TO jobs_employment AND mapping AND jobs_industry_noc--------------
+#jobs_and_industry INPUT TO jobs_employment AND jobs_industry_noc--------------
 jobs_and_industry <-
   full_join(jo_employment,
     ind_char2,
@@ -182,7 +309,7 @@ jobs_and_industry <-
   clean_tbbl()
 
 #break down NOC mappings by hierarchy
-# noc_broad_occ INPUT TO occupation2------------
+# noc_broad_occ INPUT TO noccupation------------
 noc_broad_occ <- noc_mappings_raw%>%
   filter(hierarchical_structure == "broad_occupational_category")%>%
   mutate(code = paste0("#", code))%>%
@@ -194,7 +321,7 @@ noc_broad_occ <- noc_mappings_raw%>%
 #' nesting the data by the description, creating a variable NOC2 containing the sequence,
 #' and then un-nest NOC2.
 
-# noc_major_group INPUT TO occupation2-------------
+# noc_major_group INPUT TO noccupation-------------
 noc_major_group <- noc_mappings_raw%>%
   filter(hierarchical_structure == "major_group")%>%
   separate(code, into = c("start", "finish"), sep = "-", fill = "right")%>% 
@@ -209,30 +336,51 @@ noc_major_group <- noc_mappings_raw%>%
   mutate(noc2 = str_pad(noc2, width = 2, pad = "0"),
          noc2 = paste0("#", noc2))
 
-# noc_minor_group INPUT TO occupation2-------------
+# noc_minor_group INPUT TO noccupation-------------
 noc_minor_group <- noc_mappings_raw%>%
   filter(hierarchical_structure == "minor_group")%>%
   select(noc3 = code, noc3_description = class_title)%>% 
   mutate(noc3 = str_pad(noc3, width = 3, pad = "0"),
          noc3 = paste0("#", noc3))
 
-# noc_unit INPUT TO occupation2---------------
+# noc_unit INPUT TO noccupation---------------
 noc_unit <- noc_mappings_raw %>%
   filter(hierarchical_structure == "unit_group")%>%
   select(noc = code, noc4_description = class_title)%>% 
   mutate(noc = str_pad(noc, width = 4, pad = "0"),
          noc = paste0("#", noc))
  
-# education_occupation INPUT TO jobs_employment AND occ_characteristics-----------
+# education_occupation INPUT TO jobs_employment-----------
 education_occupation <- education_occupation_raw %>%
   select(noc, noc1, noc2, noc3, education_typical_background)%>%
   filter(noc!="#t")
 
-# jobs_employment INPUT TO occupation AND by_aggregated_industry AND j_openings AND emp---------------
+# jobs_employment INPUT TO occupation AND by_aggregated_industry AND by_individual_industry AND j_openings AND emp---------------
 jobs_employment <- jobs_and_industry%>%
   full_join(education_occupation, by = c("noc"))
 
-# occupation INPUT TO occupation2------------
+# j_openings INPUT TO group_wages_characteristics------------------
+j_openings <- jobs_employment%>%
+  select(noc, 
+         date, 
+         region = geographic_area, 
+         job_openings)%>%
+  filter(date != year1 - 1,
+         date != year1)%>%
+  group_by(noc, region)%>%
+  summarize(job_openings=sum(job_openings))
+
+# emp INPUT TO group_wages_characteristics--------------------
+emp <- jobs_employment%>%
+  select(noc, 
+         date, 
+         region = geographic_area,
+         employment)%>%
+  filter(date == year1)%>%
+  group_by(noc, region)%>%
+  summarize(employment=sum(employment))
+
+# occupation INPUT TO noccupation------------
 occupation <- jobs_employment%>%
   group_by(geographic_area,
            noc,
@@ -249,19 +397,20 @@ occupation <- jobs_employment%>%
 #' Take the NOC levels (noc_broad_occ, noc_major_group, noc_minor_group and noc_unit)
 #'  and join them to our occupation data frame ==> this gives us the descriptions for 
 #'  each NOC level (ie NOC1 and NOC1 description, NOC2 and NOC2 description etc)
-# occupation2 INPUT TO Occupations_regional.csv AND noc_mappings2------------
-occupation2 <- occupation%>%
+
+# noccupation INPUT TO Occupations_regional.csv AND noc_mappings2------------
+noccupation <- occupation%>%
   full_join(noc_broad_occ, by = "noc1") # merge with broad occupations
-occupation2 <- occupation2%>%
+noccupation <- noccupation%>%
   full_join(noc_major_group, by = "noc2") # merge with major groups
-occupation2 <- occupation2%>%
+noccupation <- noccupation%>%
   full_join(noc_minor_group, by = "noc3") # merge with minor groups
-occupation2 <- occupation2%>%
+noccupation <- noccupation%>%
   full_join(noc_unit, by = "noc") # merge with unit groups
 
 #noc_mappings2 INPUT TO jobs_industry_noc--------------
 noc_mappings2 <-
-  unique(occupation2[, c(
+  unique(noccupation[, c(
     "noc",
     "noc1",
     "noc2",
@@ -272,7 +421,7 @@ noc_mappings2 <-
     "noc4_description"
   )])
 
-#jobs_industry_noc INPUT TO Jobs_and_Industry.csv---------------
+#jobs_industry_noc INPUT TO Jobs_and_Industry.csv AND mapping---------------
 jobs_industry_noc <- jobs_and_industry%>%
   full_join(noc_mappings2, by = "noc")%>%
   mutate(sector=str_replace(sector, "agrifood_sector", "agrifoods_sector"))
@@ -349,40 +498,15 @@ occ_characteristics <- education_occupation_raw%>%
 # group_wages_characteristics INPUT TO occ_characteristics_wage.csv--------------------
 group_wages_characteristics <- full_join(group_and_wages, 
                                          occ_characteristics, 
-                                         by = "noc")
-
-# j_openings INPUT TO group_wages_characteristics------------------
-j_openings <- jobs_employment%>%
-  select(noc, 
-         date, 
-         region = geographic_area, 
-         job_openings)%>%
-  filter(date != year1 - 1,
-         date != year1)%>%
-  group_by(noc, region)%>%
-  summarize(job_openings=sum(job_openings))
-
-# emp INPUT TO group_wages_characteristics--------------------
-emp <- jobs_employment%>%
-  select(noc, 
-         date, 
-         region = geographic_area,
-         employment)%>%
-  filter(date == year1)%>%
-  group_by(noc, region)%>%
-  summarize(employment=sum(employment))
-
-# group_wages_characteristics INPUT TO occ_characteristics_wage.csv---------------
-group_wages_characteristics <-
-  full_join(group_wages_characteristics, j_openings, by = c("noc", "region"))
-group_wages_characteristics <-
-  full_join(group_wages_characteristics, emp, by = c("noc", "region"))%>%
+                                         by = "noc")%>%
+  full_join(j_openings, by = c("noc", "region"))%>%
+  full_join(emp, by = c("noc", "region"))%>%
   filter(!is.na(occupation_group))
 
 # Write_to_File------------------
 clean_and_save(jo_employment, "Clean_JO.csv")
 clean_and_save(ds_merged, "Supply_cleaned.csv")
-clean_and_save(occupation2, "Occupations_regional.csv")
+clean_and_save(noccupation, "Occupations_regional.csv")
 clean_and_save(jobs_industry_noc, "Jobs_and_Industry.csv")
 clean_and_save(individual_industry_agg_industry, "Employment_Growth_Rates.csv")
 clean_and_save(group_wages_characteristics, "occ_characteristics_wage.csv")
