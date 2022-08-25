@@ -1,0 +1,281 @@
+---
+title: "R code for LMO Tableau"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(DiagrammeR)
+library(tidyverse)
+library(htmltools)
+dfs <- readRDS("dataframes.RDS")
+```
+
+
+### Input Dataframes:
+
+Here is a brief description of the input dataframes (column names, data type and an example)
+
+
+```{r, echo=FALSE, results='asis'}
+print_kable <- function(names, tbbl){
+  cat(HTML(paste0("<h6> Input ",names,"</h6>")))
+  tbbl%>%
+    knitr::kable(escape = TRUE)%>%
+    kableExtra::kable_styling("striped", position = "left", font_size = 7, full_width=FALSE)%>%
+    print()
+}
+
+input_list <- dfs%>%
+  filter(df_names %in% c("wages_raw",
+                        "jo_raw",
+                        "ind_char_raw",
+                        "employment_raw",
+                        "ds_raw",
+                        "noc_mappings_raw",
+                        "education_occupation_raw",
+                        "hoo"))%>%
+  deframe()
+
+walk2(names(input_list), input_list, print_kable)
+```
+
+### Flowcharts for code:
+
+##### Clean_JO.csv
+
+```{r, echo=FALSE}
+mermaid("
+graph LR
+
+2(JO single variables.csv)
+3(Industry characteristics.xlsx)
+4(Emp single variables.csv)
+
+2 --> jo_raw
+3 --> ind_char_raw
+4 --> employment_raw
+
+jo_raw --> jo
+jo --> jo_employment
+ind_char_raw --> employment_industry
+employment_raw --> employment_industry
+employment_industry -->jo_employment
+jo_employment --> Clean_JO.csv
+
+", height = '100%', width = '100%')
+```
+
+##### Supply_cleaned.csv
+
+```{r, echo=FALSE}
+mermaid("
+graph LR
+
+2(JO single variables.csv)
+5(DS single variables.csv)
+
+2 --> jo_raw
+5 --> ds_raw
+
+jo_raw --> jo_all_industries
+jo_all_industries --> ds_merged
+ds_raw --> ds_merged
+ds_merged --> Supply_cleaned.csv
+", height = '100%', width = '100%')
+```
+
+##### Occupations_regional.csv
+
+```{r, echo=FALSE}
+mermaid("
+graph LR
+
+2(JO single variables.csv)
+3(Industry characteristics.xlsx)
+4(Emp single variables.csv)
+6(NOC Mappings.csv)
+7(Occupation characteristics.xlsx)
+
+2 --> jo_raw
+3 --> ind_char_raw
+4 --> employment_raw
+6 --> noc_mappings_raw
+7 --> education_occupation_raw
+
+jo_raw --> jo
+jo --> jo_employment
+employment_raw --> jo_employment
+ind_char_raw --> ind_char2
+jo_employment --> jobs_and_industry
+ind_char2 --> jobs_and_industry
+noc_mappings_raw --> noc_broad_occ
+noc_mappings_raw --> noc_major_group
+noc_mappings_raw --> noc_minor_group
+noc_mappings_raw --> noc_unit
+education_occupation_raw --> education_occupation
+jobs_and_industry --> jobs_employment
+education_occupation --> jobs_employment
+jobs_employment --> occupation
+occupation --> occupation2
+noc_broad_occ --> occupation2
+noc_major_group--> occupation2
+noc_minor_group--> occupation2
+noc_unit--> occupation2
+occupation2 --> Occupations_regional.csv
+
+", height = '100%', width = '100%')
+```
+##### Jobs_and_industry.csv 
+```{r, echo=FALSE}
+mermaid("
+graph LR
+1(Industry characteristics.xlsx)
+2(JO single variables.csv)
+3(Emp single variables.csv)
+4(NOC Mappings.csv)
+5(Occupation characteristics.xlsx)
+
+1 --> ind_char_raw
+2 --> jo_raw
+3 --> employment_raw
+4 --> noc_mappings_raw
+5 --> education_occupation_raw
+
+education_occupation_raw --> education_occupation
+noc_mappings_raw --> noc_broad_occ
+noc_mappings_raw --> noc_major_group
+noc_mappings_raw --> noc_minor_group
+noc_mappings_raw --> noc_unit
+education_occupation --> jobs_employment
+jobs_and_industry --> jobs_employment
+jobs_employment --> occupation
+jo_raw --> jo
+occupation --> occupation2
+noc_broad_occ --> occupation2
+noc_major_group--> occupation2
+noc_minor_group--> occupation2
+noc_unit --> occupation2
+
+ind_char_raw --> ind_char2
+jo --> jo_employment
+employment_raw --> jo_employment
+occupation2 --> noc_mappings2
+
+ind_char2 --> jobs_and_industry
+jo_employment --> jobs_and_industry
+
+jobs_and_industry --> jobs_industry_noc
+noc_mappings2 --> jobs_industry_noc
+
+jobs_industry_noc --> Jobs_and_Industry.csv
+", height = '100%', width = '100%')
+```
+##### Employment_Growth_Rates.csv
+```{r, echo=FALSE}
+mermaid("
+graph LR
+
+2(JO single variables.csv)
+3(Industry characteristics.xlsx)
+4(Emp single variables.csv)
+7(Occupation characteristics.xlsx)
+
+2 --> jo_raw
+3 --> ind_char_raw
+4 --> employment_raw
+7 --> education_occupation_raw
+
+jo_raw --> jo
+jo --> jo_employment
+employment_raw --> jo_employment
+ind_char_raw --> ind_char2
+jo_employment --> jobs_and_industry
+jobs_and_industry --> mapping
+ind_char2 --> jobs_and_industry
+education_occupation_raw --> education_occupation
+jobs_and_industry --> jobs_employment
+education_occupation --> jobs_employment
+jobs_employment --> by_aggregated_industry
+jobs_employment --> by_individual_industry
+mapping --> by_individual_industry
+by_individual_industry --> individual_industry_agg_industry
+by_aggregated_industry --> individual_industry_agg_industry
+individual_industry_agg_industry --> Employment_Growth_Rates.csv
+", height = '100%', width = '100%')
+```
+##### occ_characteristics_wage.csv
+
+```{r, echo=FALSE}
+mermaid("
+graph LR
+1(2020Preliminary wages.xlsx)
+2(JO single variables.csv)
+3(Industry characteristics.xlsx)
+4(Emp single variables.csv)
+7(Occupation characteristics.xlsx)
+8(HOO list.xlsx) 
+
+1 --> wages_raw
+2 --> jo_raw
+3 --> ind_char_raw
+4 --> employment_raw
+7 --> education_occupation_raw
+8 --> hoo
+
+jo_raw --> noc_geo
+noc_geo --> occ_group
+education_occupation_raw --> occ_group
+hoo --> occ_group
+jo_raw --> jo
+jo --> jo_employment
+employment_raw --> jo_employment
+ind_char_raw --> ind_char2
+jo_employment --> jobs_and_industry
+ind_char2 --> jobs_and_industry
+
+education_occupation_raw --> education_occupation
+jobs_and_industry --> jobs_employment
+education_occupation --> jobs_employment
+
+wages_raw --> wages_cleaned
+wages_cleaned --> group_and_wages
+occ_group --> group_and_wages
+education_occupation_raw --> occ_characteristics
+group_and_wages --> group_wages_characteristics
+occ_characteristics --> group_wages_characteristics
+jobs_employment --> j_openings
+jobs_employment --> emp
+j_openings --> group_wages_characteristics
+emp --> group_wages_characteristics
+group_wages_characteristics --> occ_characteristics_wage.csv
+", height = '100%', width = '100%')
+```
+
+### Output dataframe summaries:
+
+Here is a brief description of the output dataframes (column names, data type and an example)
+
+
+```{r, echo=FALSE, results='asis'}
+print_kable <- function(names, tbbl){
+  cat(HTML(paste0("<h6> Output ",names,"</h6>")))
+  tbbl%>%
+    knitr::kable(escape = TRUE)%>%
+    kableExtra::kable_styling("striped", position = "left", font_size = 7, full_width=FALSE)%>%
+    print()
+}
+
+out_list <- dfs%>%
+  filter(df_names %in% c("jo_employment",
+                        "ds_merged",
+                        "occupation",
+                        "jobs_industry_noc",
+                        "individual_industry_agg_industry",
+                        "group_wages_characteristics"))%>%
+  deframe()
+
+walk2(names(out_list), out_list, print_kable)
+```
+
+
