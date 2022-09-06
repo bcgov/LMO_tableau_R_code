@@ -1,5 +1,5 @@
 #to-do before running code----------------
-#' ensure that the current versions of the following files are available in subdirectory "LMO Master Databases"
+#' ensure that the current versions of the following files are available in subdirectory "raw_data"
 #' "JO single variables.csv"
 #' "Industry characteristics.xlsx"
 #' "Emp single variables.csv"
@@ -153,22 +153,22 @@ clean_tbbl <- function(tbbl) {
 wages_raw <- read_excel(here("Tableau Tool Inputs", list.files(here("Tableau Tool Inputs"), pattern = "wages")))
 
 # jobs data
-jo_raw <- read_csv(here("LMO Master Databases", "JO single variables.csv"), locale = readr::locale(encoding = "latin1")) %>%
+jo_raw <- read_csv(here("raw_data", "JO single variables.csv"), locale = readr::locale(encoding = "latin1")) %>%
   clean_tbbl() %>%
   filter(noc != "#t")
 
 # industry characteristics
-ind_char_raw <- read_excel(here("LMO Master Databases", "Industry characteristics.xlsx")) %>%
+ind_char_raw <- read_excel(here("raw_data", "Industry characteristics.xlsx")) %>%
   clean_tbbl()
 
 # employment data
-employment_raw <- read_csv(here("LMO Master Databases", "Emp single variables.csv"),
+employment_raw <- read_csv(here("raw_data", "Emp single variables.csv"),
                            locale = readr::locale(encoding = "latin1")
 ) %>%
   clean_tbbl()
 
 # demand/supply data
-ds_raw <- read_csv(here("LMO Master Databases", "DS single variables.csv")) %>%
+ds_raw <- read_csv(here("raw_data", "DS single variables.csv")) %>%
   clean_tbbl()
 
 # NOC Mappings
@@ -176,11 +176,11 @@ noc_mappings_raw <- read_csv(here("Tableau Tool Inputs", "NOC Mappings.csv")) %>
   clean_tbbl()
 
 # occupation characteristics file
-education_occupation_raw <- read_excel(here("LMO Master Databases", "Occupation characteristics.xlsx")) %>%
+education_occupation_raw <- read_excel(here("raw_data", "Occupation characteristics.xlsx")) %>%
   clean_tbbl()
 
 # high opportunity occupations
-hoo <- read_excel(here("LMO Master Databases", "HOO list.xlsx")) %>%
+hoo <- read_excel(here("raw_data", "HOO list.xlsx")) %>%
   clean_tbbl() %>%
   mutate(high_opportunity_occupation = factor(high_opportunity_occupation, labels = c("non-hoo", "hoo"))) %>%
   rename(occupation_group = high_opportunity_occupation) %>%
