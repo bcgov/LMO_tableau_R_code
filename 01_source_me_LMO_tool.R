@@ -10,7 +10,7 @@
 #' and the current version of these files are available in subdirectory "Tableau Tool Inputs"
 #' "NOC Mappings.csv"
 #' "IndustryProfiles_Descriptions.xlsx"
-#' "2020Preliminary wages.xlsx" MUST BE ONLY FILE IN "Tableau Tool Inputs" CONTAINING STRING "wages"
+#' "2020Preliminary wages.xlsx" ** MUST BE ONLY FILE IN "Tableau Tool Inputs" CONTAINING STRING "wages"
 
 # Functions------------
 # this function take a tbbl with two columns, start and finish and returns either start OR a sequence between start and finish.
@@ -102,21 +102,27 @@ clean_and_save <- function(tbbl, file_name){
   colnames(tbbl) <- make_title(colnames(tbbl))
   write_csv(tbbl, here("Tableau Tool Inputs", file_name))
 }
+get_ten_obs <- function(vec){
+  if_else(is.factor(vec), 
+         paste(head(levels(vec), n=10), collapse = ", "), 
+         paste(head(vec, n=10), collapse = ", "))
+}
 
-get_example <- function(vec){
-  example <- sample(vec, 1)
-  ifelse(is.factor(vec), as.character(example), example)
+get_levels <- function(vec){
+  length(unique(vec))
 }
 
 # creates summary of a dataframe (columns and column types)
 col_names_type_example <- function(df){
   cname <- colnames(get(df))
   ctype <- sapply(get(df), class)
-  cexample <- sapply(get(df), get_example)
-  tbbl <- tibble(column = cname, type = ctype, example = cexample)
+  clevels <- sapply(get(df), get_levels)
+  cexample <- sapply(get(df), get_ten_obs)
+  tbbl <- tibble(column = cname, type = ctype, levels= clevels, ten_values = cexample)
 }
 
-# BEGINNING OF CODE SHARED WITH LMO TOOL--------
+# BEGINNING OF CODE SHARED WITH INDUSTRY TOOL--------
+
 # libraries------------
 library("lubridate")
 library("tidyverse")
@@ -143,7 +149,7 @@ clean_tbbl <- function(tbbl) {
     mutate(across(where(is.character), make_clean_factor))
 }
 # Read in the dataframes------------------------
-# wage data THIS WILL BREAK IF MULTIPLE FILES CONTAIN THE PATTERN wages.
+# wage data THIS WILL BREAK IF MULTIPLE FILES CONTAIN THE PATTERN wages. (cleaned up below)
 wages_raw <- read_excel(here("Tableau Tool Inputs", list.files(here("Tableau Tool Inputs"), pattern = "wages")))
 
 # jobs data
@@ -182,31 +188,20 @@ hoo <- read_excel(here("LMO Master Databases", "HOO list.xlsx")) %>%
 
 #PROCESSING---------------
 
-# job_openings INPUT TO jo_employment---------------
-job_openings <- jo_raw %>%
+long <- bind_rows(jo_raw, employment_raw)
+columns_to_keep <- colnames(long)
+
+# jo_employment INPUT TO Clean_JO.csv AND jobs_and_industry----------------
+
+jo_employment <- long%>%
   filter(
     industry != "all_industries", # Note that if label "all industries" changes in the excel file, will need to change (**)
     description != "total",
     noc != "#t"
-  ) %>%
-  pivot_wider(names_from = variable, values_from = value)
-
-# employment_industry INPUT TO jo_employment ---------------
-columns_to_keep <- colnames(employment_raw)
-employment_industry <- employment_raw %>%
-  full_join(ind_char_raw, by = "industry") %>%
-  filter(noc != "#t") %>%
-  select(all_of(columns_to_keep), industry_code, aggregate_industry)
-
-# jo_employment INPUT TO Clean_JO.csv AND jobs_and_industry----------------
-jo_employment <-
-  full_join(
-    job_openings,
-    employment_industry,
-    by = c("date", "noc", "description", "industry", "geographic_area")
   )%>%
-  filter(industry != "all_industries") %>%
-  rename(employment = value) %>%
+  left_join(ind_char_raw, by = "industry") %>%
+  select(all_of(columns_to_keep), industry_code, aggregate_industry)%>%
+  pivot_wider(names_from = variable, values_from = value)%>%
   select(
     date,
     noc,
@@ -223,6 +218,7 @@ jo_employment <-
     industry_code
   ) %>%
   filter(!is.na(geographic_area))
+
 
 # noc_geo INPUT TO occ_group---------------
 noc_geo <- jo_raw %>%
@@ -245,36 +241,28 @@ occ_group <- education_occupation_raw %>%
   na.omit() %>%
   clean_tbbl()
 
-# END OF COMMON CODE--------
-#jo_all_industries INPUT TO ds_merged------------
+# END OF CODE SHARED WITH INDUSTRY TOOL--------
+
+#jo_all_industries INPUT TO ds_and_jo------------
+
 jo_all_industries <-jo_raw %>% 
   filter(description != "total",
          noc != "#t",
-         industry == "all_industries")%>%
-  pivot_wider(names_from = variable, values_from = value)
+         industry == "all_industries")
 
-
-# ds_merged INPUT TO Supply_cleaned.csv -----------
-ds_merged <- ds_raw%>%
+# ds_and_jo INPUT TO Supply_cleaned.csv -----------
+ds_and_jo <- ds_raw%>%
+  bind_rows(jo_all_industries)%>%
+  group_by(noc, description, industry, variable, geographic_area, date)%>%
+  summarize(value=mean(value, na.rm=TRUE))%>% #deal with some duplicate records
   pivot_wider(names_from = variable, values_from = value)%>%
-  full_join(
-    jo_all_industries,
-    by = c("date", 
-           "geographic_area", 
-           "noc", 
-           "description", 
-           "industry", 
-           "deaths", 
-           "expansion_demand", 
-           "job_openings", 
-           "retirements"))%>%
   rename(young_people_starting_work = new_entrants,
          immigrants = `net_international_in-migration`,
          migrants_from_other_provinces = `net_interregional_in-migration`)%>%
   mutate(additional_supply_requirement = job_openings - immigrants - migrants_from_other_provinces - young_people_starting_work,
          labour_force_exits = -1 * (deaths + retirements),
          net_change_in_labour_force = young_people_starting_work + immigrants + migrants_from_other_provinces + additional_supply_requirement + labour_force_exits
-         )%>%
+  )%>%
   select(date, 
          geographic_area, 
          noc, 
@@ -288,6 +276,7 @@ ds_merged <- ds_raw%>%
          labour_force_exits,
          net_change_in_labour_force)
 
+
 # ind_char2 INPUT TO jobs_and_industry-----------
 ind_char2 <- ind_char_raw%>% 
   filter(sector != "total")%>%
@@ -299,7 +288,8 @@ ind_char2 <- ind_char_raw%>%
          -ind_group_tech_intensive_industries, 
          -ita_sector_advisory_group)
 
-#jobs_and_industry INPUT TO jobs_employment AND jobs_industry_noc--------------
+#jobs_and_industry INPUT TO jobs_industry_noc--------------
+
 jobs_and_industry <-
   full_join(jo_employment,
     ind_char2,
@@ -356,7 +346,12 @@ education_occupation <- education_occupation_raw %>%
   filter(noc!="#t")
 
 # jobs_employment INPUT TO occupation AND by_aggregated_industry AND by_individual_industry AND j_openings AND emp---------------
-jobs_employment <- jobs_and_industry%>%
+
+# jobs_employment <- jobs_and_industry%>%
+#   full_join(education_occupation, by = c("noc"))
+
+jobs_employment <- jo_employment%>%
+  filter(industry != "all_industries")%>%
   full_join(education_occupation, by = c("noc"))
 
 # j_openings INPUT TO group_wages_characteristics------------------
@@ -505,7 +500,7 @@ group_wages_characteristics <- full_join(group_and_wages,
 
 # Write_to_File------------------
 clean_and_save(jo_employment, "Clean_JO.csv")
-clean_and_save(ds_merged, "Supply_cleaned.csv")
+clean_and_save(ds_and_jo, "Supply_cleaned.csv")
 clean_and_save(noccupation, "Occupations_regional.csv")
 clean_and_save(jobs_industry_noc, "Jobs_and_Industry.csv")
 clean_and_save(individual_industry_agg_industry, "Employment_Growth_Rates.csv")
