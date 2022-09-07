@@ -1,16 +1,14 @@
 #to-do before running code----------------
 #' ensure that the current versions of the following files are available in subdirectory "raw_data"
-#' "JO single variables.csv"
-#' "Industry characteristics.xlsx"
-#' "Emp single variables.csv"
-#' "DS single variables.csv"
-#' "Occupation characteristics.xlsx"
-#' "HOO list.xlsx"
-#' 
-#' and the current version of these files are available in subdirectory "Tableau Tool Inputs"
-#' "NOC Mappings.csv"
+#' "JO..."
+#' "lmo64..."
+#' "Emp..."
+#' "DS..."
+#' "Occupation characteristics..."
+#' "HOO..."
+#' "NOC..."
 #' "IndustryProfiles_Descriptions.xlsx"
-#' "2020Preliminary wages.xlsx" ** MUST BE ONLY FILE IN "Tableau Tool Inputs" CONTAINING STRING "wages"
+#' "Wages..." 
 
 # Functions------------
 # this function take a tbbl with two columns, start and finish and returns either start OR a sequence between start and finish.
@@ -100,7 +98,7 @@ clean_and_save <- function(tbbl, file_name){
     tibble()%>%
     mutate(across(where(is.character), make_title))
   colnames(tbbl) <- make_title(colnames(tbbl))
-  write_csv(tbbl, here("Tableau Tool Inputs", file_name))
+  write_csv(tbbl, here("processed_data", file_name))
 }
 get_ten_obs <- function(vec){
   if_else(is.factor(vec), 
@@ -120,6 +118,13 @@ col_names_type_example <- function(df){
   cexample <- sapply(get(df), get_ten_obs)
   tbbl <- tibble(column = cname, type = ctype, levels= clevels, ten_values = cexample)
 }
+nest_to_string <- function(tbbl){
+  tbbl%>%
+    pull()%>%
+    toString()
+}
+
+
 
 # BEGINNING OF CODE SHARED WITH INDUSTRY TOOL--------
 
@@ -129,7 +134,7 @@ library("tidyverse")
 library("here")
 library("readxl")
 # "constants"... that change every year------------
-year1 <- as.numeric(year(today())) - 1 # delete the -1 once we have current data.
+year1 <- as.numeric(year(today())) # delete the -1 once we have current data.
 year2 <- year1 + 5
 year3 <- year1 + 10
 # Functions--------------
@@ -149,38 +154,67 @@ clean_tbbl <- function(tbbl) {
     mutate(across(where(is.character), make_clean_factor))
 }
 # Read in the dataframes------------------------
-# wage data THIS WILL BREAK IF MULTIPLE FILES CONTAIN THE PATTERN wages. (cleaned up below)
-wages_raw <- read_excel(here("Tableau Tool Inputs", list.files(here("Tableau Tool Inputs"), pattern = "wages")))
+wages_raw <- read_excel(here("raw_data", list.files(here("raw_data"), pattern = "Wages", ignore.case = TRUE)))
 
 # jobs data
-jo_raw <- read_csv(here("raw_data", "JO single variables.csv"), locale = readr::locale(encoding = "latin1")) %>%
+jo_raw <- read_csv(here("raw_data", 
+                        list.files(here("raw_data"), pattern = "JO", ignore.case = TRUE)),
+                  locale = readr::locale(encoding = "latin1"),
+                  skip=3,
+                  col_select = -1)%>%
+  pivot_longer(cols=-c(NOC, Description, Industry, Variable, `Geographic Area`),
+               names_to = "date",
+               values_to = "value")%>%
   clean_tbbl() %>%
   filter(noc != "#t")
 
 # industry characteristics
-ind_char_raw <- read_excel(here("raw_data", "Industry characteristics.xlsx")) %>%
-  clean_tbbl()
+ind_char_raw <- read_excel(here("raw_data", "lmo64_characteristics.xlsx")) %>%
+  clean_tbbl()%>%
+  rename(industry_code=lmo_ind_code,
+         industry=lmo_detailed_industry)%>%
+  group_by(across(c(-naics)))%>%
+  nest()%>%
+  mutate(naics_definition=map_chr(data, nest_to_string))%>%
+  select(-data)
 
 # employment data
-employment_raw <- read_csv(here("raw_data", "Emp single variables.csv"),
-                           locale = readr::locale(encoding = "latin1")
-) %>%
-  clean_tbbl()
+
+employment_raw <- read_csv(here("raw_data", 
+                        list.files(here("raw_data"), pattern = "Emp")),
+                   locale = readr::locale(encoding = "latin1"),
+                   skip=3,
+                   col_select = -1)%>%
+  pivot_longer(cols=-c(NOC, Description, Industry, Variable, `Geographic Area`),
+               names_to = "date",
+               values_to = "value")%>%
+  clean_tbbl() 
 
 # demand/supply data
-ds_raw <- read_csv(here("raw_data", "DS single variables.csv")) %>%
+
+ds_raw <- read_csv(here("raw_data", 
+                                list.files(here("raw_data"), pattern = "DS")),
+                           locale = readr::locale(encoding = "latin1"),
+                           skip=3,
+                           col_select = -1)%>%
+  pivot_longer(cols=-c(NOC, Description, Industry, Variable, `Geographic Area`),
+               names_to = "date",
+               values_to = "value")%>%
   clean_tbbl()
 
 # NOC Mappings
-noc_mappings_raw <- read_csv(here("Tableau Tool Inputs", "NOC Mappings.csv")) %>%
+noc_mappings_raw <- read_csv(here("raw_data", "NOC Mappings.csv")) %>%
   clean_tbbl()
 
 # occupation characteristics file
-education_occupation_raw <- read_excel(here("raw_data", "Occupation characteristics.xlsx")) %>%
-  clean_tbbl()
+education_occupation_raw <- read_excel(here("raw_data",  
+                                            list.files(here("raw_data"), pattern = "Occupation")),
+                                       skip=3) %>%
+  clean_tbbl()%>%
+  rename(noc = noc_2016)
 
 # high opportunity occupations
-hoo <- read_excel(here("raw_data", "HOO list.xlsx")) %>%
+hoo <- read_excel(here("raw_data",  list.files(here("raw_data"), pattern = "HOO"))) %>%
   clean_tbbl() %>%
   mutate(high_opportunity_occupation = factor(high_opportunity_occupation, labels = c("non-hoo", "hoo"))) %>%
   rename(occupation_group = high_opportunity_occupation) %>%
@@ -199,8 +233,9 @@ jo_employment <- long%>%
     description != "total",
     noc != "#t"
   )%>%
-  left_join(ind_char_raw, by = "industry") %>%
+  left_join(ind_char_raw, by = "industry")%>%
   select(all_of(columns_to_keep), industry_code, aggregate_industry)%>%
+  distinct()%>%
   pivot_wider(names_from = variable, values_from = value)%>%
   select(
     date,
@@ -279,10 +314,11 @@ ds_and_jo <- ds_raw%>%
 
 # ind_char2 INPUT TO jobs_and_industry-----------
 ind_char2 <- ind_char_raw%>% 
-  filter(sector != "total")%>%
-  mutate(sector = if_else(ind_group_tech_intensive_industries == "tech_intensive", 
+  mutate(ind_group_tech_intensive_industries = as.character(ind_group_tech_intensive_industries),
+         sector = if_else(ind_group_tech_intensive_industries == "tech_intensive", 
                           "technology", 
-                          sector)
+                          as.character(sector)),
+         sector = factor(sector)
          )%>%
   select(-ind_group_trades_intensive_industries, 
          -ind_group_tech_intensive_industries, 
@@ -294,7 +330,6 @@ jobs_and_industry <-
   full_join(jo_employment,
     ind_char2,
     by = c("industry_code", "industry", "aggregate_industry"))%>%
-  select(-agg_industry_code)%>%
   filter(industry != "all_industries")%>%
   clean_tbbl()
 
@@ -342,7 +377,11 @@ noc_unit <- noc_mappings_raw %>%
  
 # education_occupation INPUT TO jobs_employment-----------
 education_occupation <- education_occupation_raw %>%
-  select(noc, noc1, noc2, noc3, education_typical_background)%>%
+  select(noc, 
+         noc1, 
+         noc2, 
+         noc3, 
+         education_typical_background= contains("typical_education"))%>%
   filter(noc!="#t")
 
 # jobs_employment INPUT TO occupation AND by_aggregated_industry AND by_individual_industry AND j_openings AND emp---------------
@@ -441,36 +480,37 @@ individual_industry_agg_industry <- bind_rows(by_individual_industry, by_aggrega
   unique()
 
 # wages_cleaned INPUT TO group_and_wages--------------------
+#NO ECONOMIC REGION IN NEW DATA FILE
 wages_cleaned <- wages_raw%>%
-  select(noc= NOC,
-         region = "Economic Region",
-         low_wage = contains("Low Wage"),
-         median_wage = contains("Median Wage"),
-         high_wage = contains("High Wage"))%>%
+  select(noc= `NOC 2016`,
+       #  region = "Economic Region",
+         low_wage = contains("Low"),
+         median_wage = contains("Median"),
+         high_wage = contains("High"))%>%
   remove_missing()%>%
-  filter(region != "National")%>%
-  mutate(region= factor(
-    region,
-    levels = levels(as.factor(region)),
-    labels = c(
-      "British Columbia",
-      "Cariboo",
-      "Kootenay",
-      "Mainland South West",
-      "North Coast & Nechako",
-      "North Coast & Nechako",
-      "North East",
-      "Thompson Okanagan",
-      "Vancouver Island Coast"
-    )
-  ),
-  region=as.character(region)
-  )%>%
+  # filter(region != "National")%>%
+  # mutate(region= factor(
+  #   region,
+  #   levels = levels(as.factor(region)),
+  #   labels = c(
+  #     "British Columbia",
+  #     "Cariboo",
+  #     "Kootenay",
+  #     "Mainland South West",
+  #     "North Coast & Nechako",
+  #     "North Coast & Nechako",
+  #     "North East",
+  #     "Thompson Okanagan",
+  #     "Vancouver Island Coast"
+  #   )
+  # ),
+  # region=as.character(region)
+  # )%>%
   clean_tbbl()
 
 #group_and_wages INPUT TO group_wages_characteristics-------------------------
 group_and_wages <- wages_cleaned%>%
-  full_join(occ_group, by=c("region"="geographic_area","noc"="noc"), multiple = "all")%>%
+  full_join(occ_group, by=c("noc"="noc"))%>%
   na.omit()
 
 # occ_characteristics INPUT TO group_wages_characteristics----------------------------
@@ -478,8 +518,8 @@ occ_characteristics <- education_occupation_raw%>%
   select(
     noc,
     occupation_title = description,
-    typical_education = education_typical_background,
-    alternative_education = education_alternative_background,
+    typical_education = contains("typical"),
+  # alternative_education = education_alternative_background,
     interest1,
     interest2,
     interest3,
@@ -494,6 +534,7 @@ occ_characteristics <- education_occupation_raw%>%
 group_wages_characteristics <- full_join(group_and_wages, 
                                          occ_characteristics, 
                                          by = "noc")%>%
+  rename(region = geographic_area)%>%
   full_join(j_openings, by = c("noc", "region"))%>%
   full_join(emp, by = c("noc", "region"))%>%
   filter(!is.na(occupation_group))
