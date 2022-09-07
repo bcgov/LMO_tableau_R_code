@@ -320,6 +320,7 @@ ind_char2 <- ind_char_raw%>%
                           as.character(sector)),
          sector = factor(sector)
          )%>%
+  ungroup()%>%
   select(-ind_group_trades_intensive_industries, 
          -ind_group_tech_intensive_industries, 
          -ita_sector_advisory_group)
@@ -510,7 +511,7 @@ wages_cleaned <- wages_raw%>%
 
 #group_and_wages INPUT TO group_wages_characteristics-------------------------
 group_and_wages <- wages_cleaned%>%
-  full_join(occ_group, by=c("noc"="noc"))%>%
+  full_join(occ_group, by=c("noc"="noc"), multiple = "all")%>%
   na.omit()
 
 # occ_characteristics INPUT TO group_wages_characteristics----------------------------
