@@ -9,6 +9,7 @@
 #' "NOC..."
 #' "IndustryProfiles_Descriptions.xlsx"
 #' "Wages..." 
+#' figure2_2...
 
 # Functions------------
 # this function take a tbbl with two columns, start and finish and returns either start OR a sequence between start and finish.
@@ -98,6 +99,10 @@ clean_and_save <- function(tbbl, file_name){
     tibble()%>%
     mutate(across(where(is.character), make_title))
   colnames(tbbl) <- make_title(colnames(tbbl))
+  if("Noc" %in% colnames(tbbl)){
+  tbbl <- tbbl%>%
+    rename(NOC=Noc)
+  }
   write_csv(tbbl, here("processed_data", file_name))
 }
 get_ten_obs <- function(vec){
@@ -238,19 +243,19 @@ jo_employment <- long%>%
   distinct()%>%
   pivot_wider(names_from = variable, values_from = value)%>%
   select(
+    industry,
     date,
     noc,
     description,
     employment,
-    industry,
-    aggregate_industry,
     geographic_area,
     job_openings,
     expansion_demand,
     replacement_demand,
     deaths,
     retirements,
-    industry_code
+    industry_code, 
+    aggregate_industry
   ) %>%
   filter(!is.na(geographic_area))
 
@@ -298,18 +303,18 @@ ds_and_jo <- ds_raw%>%
          labour_force_exits = -1 * (deaths + retirements),
          net_change_in_labour_force = young_people_starting_work + immigrants + migrants_from_other_provinces + additional_supply_requirement + labour_force_exits
   )%>%
-  select(date, 
-         geographic_area, 
-         noc, 
-         description, 
-         industry, 
-         job_openings, 
-         young_people_starting_work, 
-         immigrants, 
-         migrants_from_other_provinces,
-         additional_supply_requirement,
-         labour_force_exits,
-         net_change_in_labour_force)
+  select(Date=date, 
+         `Geographic Area`=geographic_area, 
+         NOC=noc, 
+         Description=description, 
+         Industry=industry, 
+         `Job Openings`=job_openings, 
+         `Young people starting work`=young_people_starting_work, 
+         Immigrants=immigrants, 
+         `Migrants from other provinces`=migrants_from_other_provinces,
+         `Additional supply requirement`=additional_supply_requirement,
+         `Labour force exits`=labour_force_exits,
+         `Net change in labour force`=net_change_in_labour_force)
 
 
 # ind_char2 INPUT TO jobs_and_industry-----------
@@ -477,36 +482,27 @@ by_individual_industry <- aggregate_jobs_employment_by(industry)%>%
   full_join(mapping, by="level_value") # merge to mapping, now we have a column with the Aggregate industries matching to the LMO 61 industries
 
 # individual_industry_agg_industry INPUT TO Employment_Growth_Rates.csv-------------
+# Tableau wants . in 2 of the column names WTF???
 individual_industry_agg_industry <- bind_rows(by_individual_industry, by_aggregated_industry)%>%
-  unique()
+  unique()%>%
+  select(Level.Value=level_value,
+         Geographic.Area=geographic_area,
+         Variable=variable,
+         Level=level,
+         Value=value,
+         `Aggregate Industry`=aggregate_industry
+  )%>%
+  rapply(as.character, classes = "factor", how = "replace")%>%
+  tibble()%>%
+  mutate(across(where(is.character), make_title))
 
 # wages_cleaned INPUT TO group_and_wages--------------------
-#NO ECONOMIC REGION IN NEW DATA FILE
 wages_cleaned <- wages_raw%>%
   select(noc= `NOC 2016`,
-       #  region = "Economic Region",
          low_wage = contains("Low"),
          median_wage = contains("Median"),
          high_wage = contains("High"))%>%
   remove_missing()%>%
-  # filter(region != "National")%>%
-  # mutate(region= factor(
-  #   region,
-  #   levels = levels(as.factor(region)),
-  #   labels = c(
-  #     "British Columbia",
-  #     "Cariboo",
-  #     "Kootenay",
-  #     "Mainland South West",
-  #     "North Coast & Nechako",
-  #     "North Coast & Nechako",
-  #     "North East",
-  #     "Thompson Okanagan",
-  #     "Vancouver Island Coast"
-  #   )
-  # ),
-  # region=as.character(region)
-  # )%>%
   clean_tbbl()
 
 #group_and_wages INPUT TO group_wages_characteristics-------------------------
@@ -520,7 +516,6 @@ occ_characteristics <- education_occupation_raw%>%
     noc,
     occupation_title = description,
     typical_education = contains("typical"),
-  # alternative_education = education_alternative_background,
     interest1,
     interest2,
     interest3,
@@ -538,15 +533,94 @@ group_wages_characteristics <- full_join(group_and_wages,
   rename(region = geographic_area)%>%
   full_join(j_openings, by = c("noc", "region"))%>%
   full_join(emp, by = c("noc", "region"))%>%
-  filter(!is.na(occupation_group))
+  filter(!is.na(occupation_group))%>%
+  select(NOC=noc,
+         Region=region,
+         `Occupation Group`=occupation_group,
+         `Low Wage`=low_wage,
+         `Median Wage`=median_wage,
+         `High Wage`=high_wage,
+         `Occupation Title`=occupation_title,
+         `Typical Education`=typical_education,
+         `Alternative Education`=typical_education, #alternative education not provided
+         Interest1=interest1,
+         Interest2=interest2,
+         Interest3=interest3,
+         Skill1=skill1,
+         Skill2=skill2,
+         Skill3=skill3,
+         Interests=interests,
+         `Top 3 Skills and Competencies`=top_3_skills_and_competencies,
+         `Job Openings`=job_openings,
+         `Employment year1`=employment)%>%
+  rapply(as.character, classes = "factor", how = "replace")%>%
+  tibble()%>%
+  mutate(across(where(is.character), make_title))
+
+#this is a hack... figure 2_2 is a sheet from LMO 2022 Edition Charts and Tables.xlsx
+sources <- read_csv(here("raw_data","figure2_2.csv"))%>%
+  pivot_longer(cols=-name, names_to = "Date", values_to = "value")%>%
+  filter(name!="Total supply change")%>%
+  pivot_wider(names_from = name, values_from = value)%>%
+  rename(`Decline in Unemployment`=`Decline in unemployment`)%>%
+  mutate(Date=as.numeric(Date))%>%
+  openxlsx::write.xlsx(here("processed_data","Sources of new workers.xlsx"))
+
 
 # Write_to_File------------------
 clean_and_save(jo_employment, "Clean_JO.csv")
-clean_and_save(ds_and_jo, "Supply_cleaned.csv")
-clean_and_save(noccupation, "Occupations_regional.csv")
-clean_and_save(jobs_industry_noc, "Jobs_and_Industry.csv")
-clean_and_save(individual_industry_agg_industry, "Employment_Growth_Rates.csv")
-clean_and_save(group_wages_characteristics, "occ_characteristics_wage.csv")
+write_csv(ds_and_jo, here("processed_data","Supply_cleaned.csv"))
+
+noccupation%>%
+  select(NOC=noc,
+         NOC3=noc3,
+         NOC2=noc2,
+         NOC1=noc1,
+         `Geographic Area`=geographic_area,
+         `Description`=description,
+         `Education:.Typical.Background`=education_typical_background,
+         `Employment year1`,
+         `Expansion year1-year3`,
+         `Replacement year1-year3`,
+         `Job Openings year1-year3`,
+         `NOC1 Description`=noc1_description,
+         `NOC2 Description`=noc2_description,
+         `NOC3 Description`=noc3_description,
+         `NOC4 Description`=noc4_description)%>%
+write_csv(here("processed_data","Occupations_regional.csv"))
+
+
+jobs_industry_noc%>%
+  select(NOC = noc,
+         `Industry Code` = industry_code,
+         Industry = industry,
+         Date = date,
+         Description=description,
+         Employment=employment,
+         `Geographic Area`=geographic_area,
+         `Job Openings`=job_openings,
+         `Expansion Demand`=expansion_demand,
+         `Replacement Demand`=replacement_demand,
+         Deaths=deaths,
+         Retirements=retirements,
+         `NAICS Definition`=naics_definition,
+         `Aggregate Industry`=aggregate_industry,
+         `Sector Code`=sector_code,
+         Sector=sector,
+         NOC1=noc1,
+         NOC2=noc2,
+         NOC3=noc3,
+         `NOC1 Description`=noc1_description,
+         `NOC2 Description`=noc2_description,
+         `NOC3 Description`=noc3_description,
+         `NOC4 Description`=noc4_description)%>%
+  rapply(as.character, classes = "factor", how = "replace")%>%
+  tibble()%>%
+  mutate(across(where(is.character), make_title))%>%
+  write_csv(here("processed_data", "Jobs_and_Industry.csv"))
+
+write_csv(individual_industry_agg_industry, here("processed_data","Employment_Growth_Rates.csv"))
+write_csv(group_wages_characteristics, here("processed_data","occ_characteristics_wage.csv"))
 
 # document objects for 02_knit_me.Rmd----------
 
