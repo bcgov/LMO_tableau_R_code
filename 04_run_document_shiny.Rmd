@@ -1,17 +1,20 @@
 ---
 title: "2022 B.C. Labour Market Outlook"
-output: 
+output:
   flexdashboard::flex_dashboard:
     orientation: columns
 runtime: shiny
 css: style.css
+resource_files:
+- shiny_data/long.csv
 ---
 ```{r}
 library(tidyverse)
 library(shinyWidgets)
 library(plotly)
 long <- read_csv(here::here("shiny_data","long.csv"))%>%
-  rename(Geographic_Area=`Geographic Area`) #selectizeGroupUI cant handle non-syntactic names
+  rename(Geographic_Area=`Geographic Area`)%>% #selectizeGroupUI cant handle non-syntactic names
+  mutate(Geographic_Area=fct_reorder(Geographic_Area, value, max))
 
 page_titles <- c("Landing Page",
                  "Highlights Part 1",
@@ -150,7 +153,6 @@ tbbl <- reactive({
   res_mod()%>%
     distinct(Geographic_Area, name, get(noc_agg()), .keep_all = TRUE)%>%
     select(Geographic_Area, name, value, noc="get(noc_agg())")%>%
-    mutate(Geographic_Area = fct_reorder2(Geographic_Area, noc, -value))%>%
     na.omit()
 })
 
@@ -179,7 +181,8 @@ renderPlotly({
     facet_wrap(vars(name), scales = "free_x")+
     labs(x="",y="")+
     guides(fill = guide_legend(reverse=TRUE))+
-    theme_minimal()
+    theme_minimal()+
+    theme(axis.text.x = element_text(angle = 15))
   ggplotly(plt, tooltip="text")%>%
     config(displayModeBar = F)
 })

@@ -625,7 +625,7 @@ jobs_industry_noc%>%
   mutate(across(where(is.character), make_title))%>%
   write_csv(here("processed_data", "Jobs_and_Industry.csv"))
 
-write_csv(individual_industry_agg_industry, here("processed_data","Employment_Growth_Rates.csv"))
+write_csv(individual_industry_agg_industry, here("processed_data", "Employment_Growth_Rates.csv"))
 write_csv(group_wages_characteristics, here("processed_data","occ_characteristics_wage.csv"))
 
 # document objects for 02_knit_me.Rmd----------
