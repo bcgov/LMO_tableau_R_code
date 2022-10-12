@@ -129,8 +129,6 @@ nest_to_string <- function(tbbl){
     toString()
 }
 
-
-
 # BEGINNING OF CODE SHARED WITH INDUSTRY TOOL--------
 
 # libraries------------
@@ -569,7 +567,12 @@ sources <- read_csv(here("raw_data","figure2_2.csv"))%>%
 
 # Write_to_File------------------
 clean_and_save(jo_employment, "Clean_JO.csv")
-write_csv(ds_and_jo, here("processed_data","Supply_cleaned.csv"))
+
+ds_and_jo%>%
+  rapply(as.character, classes = "factor", how = "replace")%>%
+  tibble()%>%
+  mutate(across(where(is.character), make_title))%>%
+  write_csv(here("processed_data","Supply_cleaned.csv"))
 
 noccupation%>%
   select(NOC=noc,
@@ -587,6 +590,9 @@ noccupation%>%
          `NOC2 Description`=noc2_description,
          `NOC3 Description`=noc3_description,
          `NOC4 Description`=noc4_description)%>%
+  rapply(as.character, classes = "factor", how = "replace")%>%
+  tibble()%>%
+  mutate(across(where(is.character), make_title))%>%
 write_csv(here("processed_data","Occupations_regional.csv"))
 
 
