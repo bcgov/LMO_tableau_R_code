@@ -137,7 +137,7 @@ library("tidyverse")
 library("here")
 library("readxl")
 # "constants"... that change every year------------
-year1 <- as.numeric(year(today())) # delete the -1 once we have current data.
+year1 <- as.numeric(year(today())) 
 year2 <- year1 + 5
 year3 <- year1 + 10
 # Functions--------------
