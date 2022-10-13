@@ -1,0 +1,53 @@
+---
+title: "Verify tableau inputs same"
+output: html_document
+date: "2022-09-15"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(here)
+library(tidyverse)
+library(readxl)
+library(kableExtra)
+```
+
+```{r, message=FALSE, results = 'asis'}
+#rfun is either read_csv or read_excel
+test_equal <- function(rfun, new_dir, new_file, old_file){
+  new <- rfun(here(new_dir, new_file), n_max = 2)
+  old <- rfun(here("old_inputs",old_file), n_max = 2)
+  if(length(colnames(new))==length(colnames(old))){
+    same_names <- identical(colnames(new), colnames(old))
+    same_class <- identical(sapply(new, class), sapply(old, class))
+    tbbl <- tibble(new_names=colnames(new),
+                 old_names=colnames(old),
+                 new_class=sapply(new, class), 
+                 old_class=sapply(old, class))%>%
+      mutate(name_same = new_names==old_names,
+             class_same = old_class==new_class)
+    
+    cat("<br>")
+     cat(paste("Input file <b>", new_file, "</b><br> all the same names?<b>", same_names, "</b> <br> all the same classes?<b>", same_class, "</b>"))
+    cat("<br>")        
+    cat(kbl(tbbl)%>%kable_styling())
+    
+   
+  }else{
+    print(colnames(new))
+    print(colnames(old))
+  }
+}
+
+test_equal(read_csv, "processed_data", "Clean_JO.csv", "Clean_JO.csv")
+test_equal(read_csv, "processed_data", "Employment_Growth_Rates.csv", "Employment_Growth_Rates.csv")
+test_equal(read_excel, "raw_data", "Education 2022E.xlsx", "Education.xlsx")
+test_equal(read_csv, "processed_data", "Jobs_and_Industry.csv", "Jobs_and_Industry.csv")
+test_equal(read_excel, "raw_data", "LMO-supply-composition-output-total10yr FINAL.xlsx", "Base Supply Composition with New Concepts.xlsx")
+test_equal(read_csv, "processed_data", "occ_characteristics_wage.csv", "occ_characteristics_wage.csv")
+test_equal(read_csv, "processed_data", "Occupations_regional.csv", "Occupations_regional.csv")
+test_equal(read_excel, "raw_data", "Definitions 2022E.xlsx", "Definitions.xlsx")
+test_equal(read_csv, "processed_data", "Supply_cleaned.csv", "Supply_cleaned.csv")
+test_equal(read_excel, "processed_data", "Sources of new workers.xlsx", "Sources of new workers.xlsx")
+```
+
