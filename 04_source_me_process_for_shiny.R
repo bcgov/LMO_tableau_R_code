@@ -23,10 +23,10 @@ agg_by_year <- function(tbbl){
 }
 
 wide <- read_csv(here::here("processed_data","Jobs_and_Industry.csv"))%>%
-  unite(NOC1, Noc1, `Noc1 Description`, sep=" ")%>%
-  unite(NOC2, Noc2, `Noc2 Description`, sep=" ")%>%
-  unite(NOC3, Noc3, `Noc3 Description`, sep=" ")%>%
-  unite(NOC4, Noc, `Noc4 Description`, sep=" ")
+  unite(NOC1, NOC1, `NOC1 Description`, sep=" ")%>%
+  unite(NOC2, NOC2, `NOC2 Description`, sep=" ")%>%
+  unite(NOC3, NOC3, `NOC3 Description`, sep=" ")%>%
+  unite(NOC4, NOC, `NOC4 Description`, sep=" ")
 
 
 mapping <- unique(wide[c("NOC1","NOC2","NOC3","NOC4")])
