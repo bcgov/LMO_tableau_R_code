@@ -1,16 +1,3 @@
-#to-do before running code----------------
-#' ensure that the current versions of the following files are available in subdirectory "raw_data"
-#' "JO..."
-#' "lmo64..."
-#' "Emp..."
-#' "DS..."
-#' "Occupation characteristics..."
-#' "HOO..."
-#' "NOC..."
-#' "IndustryProfiles_Descriptions.xlsx"
-#' "Wages..." 
-#' figure2_2...
-
 # Functions------------
 # this function take a tbbl with two columns, start and finish and returns either start OR a sequence between start and finish.
 tictoc::tic()

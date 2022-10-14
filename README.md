@@ -4,20 +4,23 @@
 2. Click the green code button.
 3. Click the clipboard icon.
 4. Start Rstudio>File>New Project>Version Control>Git
-5. Control-V to paste the repository URL, choose a directory for the project on your hard drive (the LAN is painfully slow.)
+5. Control-V to paste the repository URL, choose a directory for the project on your hard drive (LAN too slow for this.)
 6. Create Project
+7. Create sub-directories raw_data and processed_data.
+8. Get following files from 4CastViewer and put in folder raw_data.
+    * Raw Emp single variables.csv (occBC4dei211JTT)
+    * Raw JO single variables.csv (occBCjoi4d211JTT)
+    * Raw DS single variables.csv (occBC4dsd211JTT)
 
-
-
-
-4. ensure that the current versions of the following files are available in subdirectory "raw_data"
-      * "Wages"
-      * "JO..."
-      * "lmo64..."
-      * "Emp..."
-      * "DS..."
-      * "NOC..."
-      * "Occupation..."
-      * "HOO..."
-      * "IndustryProfiles_Descriptions.xlsx" (not for R: direct input to tableau)
-      * figure2_2... (not for R: direct input to tableau)
+9. ask "people" for current versions of the following files, and put in "raw_data"
+      * "2021 Wages"
+      * "lmo64_characteristics"
+      * "NOC Mapping"
+      * "Occupation Characteristics..."
+      * "HOO list"
+      * figure2_2...
+      * "IndustryProfiles_Descriptions.xlsx" (direct input to tableau)
+      * Definitions (direct input to tableau)
+      * Education...(direct input to tableau)
+      * supply-composition... (direct input to tableau)
+      
