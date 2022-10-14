@@ -18,9 +18,11 @@
       * "NOC Mapping"
       * "Occupation Characteristics..."
       * "HOO list"
-      * figure2_2...
+      * figure2_2...(a sheet from LMO Charts and Tables.xlsx)
       * "IndustryProfiles_Descriptions.xlsx" (direct input to tableau)
       * Definitions (direct input to tableau)
       * Education...(direct input to tableau)
       * supply-composition... (direct input to tableau)
+10. Source file 01_source_me_process_data.R
+
       
