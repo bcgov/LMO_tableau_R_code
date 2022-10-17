@@ -14,15 +14,17 @@
 
 7.  Create sub-directories raw_data and processed_data.
 
-8.  Get following files from 4CastViewer and put in folder raw_data.
+8.  Get following files from 4CastViewer and place in raw_data.
 
-    -   Raw Emp single variables.csv (occBC4dei211JTT)
-    -   Raw JO single variables.csv (occBCjoi4d211JTT)
-    -   Raw DS single variables.csv (occBC4dsd211JTT)
+    -   Raw Emp single variables.csv (occBC4dei211JTT) Select All occupations, All industries, All Characteristics (only Employment), All areas (8 areas selected), and CSV: Single Variables.
 
-9.  ask Feng or Nicole for current versions of the following files, place in "raw_data"
+    -   Raw JO single variables.csv (occBCjoi4d211JTT). Select All occupations, All industries, All Characteristics (5 variables), All areas (8 areas selected) and CSV: Single Variables.
 
-    -   "2021 Wages"
+    -   Raw DS single variables.csv (occBC4dsd211JTT). Select All occupations, All industries, All Characteristics, All areas (5 areas) and CSV: Single Variables.
+
+9.  ask Feng or Nicole for current versions of the following files, place in raw_data.
+
+    -   "20xx Wages"
     -   "lmo64_characteristics"
     -   "NOC Mapping"
     -   "Occupation Characteristics..."
@@ -42,14 +44,14 @@
     -   Knit file 02_knit_me_summarize_data.Rmd (broad overview of input and output files and program flow)
     -   Knit file 03_knit_me_verify_inputs.Rmd (this requires last year's dataframes be available in a subfolder old_inputs)
 
-12. Retrieve tableau file from Y:\Labour Economics\BC Labour Market Outlook\\2022 Edition (2022-2032)\Tableau\LMO\_tableau_tool_2022.twbx and place in directory.
+12. Retrieve last year's tableau file from Y:\Labour Economics\BC Labour Market Outlook\\20xx Edition (20xx-20xx)\Tableau\LMO\_tableau_tool_20xx.twbx and place in project directory. (where xx is last year)
 
 13. Open tableau, grab a coffee.
 
-14. Click on data, and then for each of the listed data sources click update data source. (sometimes you will need to be persistant.)
+14. Click on data, and then for each of the listed data sources click update data source. (sometimes doesnt work first time, but then does???)
 
-15. Once all the data sources have been updated click refresh all extracts for good measure.
+15. Once you have updated all the data sources click refresh all extracts (just to check)
 
-16. Take a look through the tableau file. Most problems will be associated with filter and dates not being correct (if all data has been filtered out you just get a blank screen.)
+16. Take a look through the tableau file... when you see a blank screen most likely due to with filter and/or dates not being correct
 
-17. Once everything is working transfer the whole directory over to the LAN.
+17. Once everything is working copy the whole directory over to the LAN.
